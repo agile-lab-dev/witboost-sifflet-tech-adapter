@@ -1,5 +1,6 @@
 package com.witboost.provisioning.dq.sifflet.service.provision;
 
+import com.witboost.provisioning.dq.sifflet.client.SourceManager;
 import com.witboost.provisioning.framework.service.ProvisionService;
 import com.witboost.provisioning.model.Specific;
 import com.witboost.provisioning.model.common.FailedOperation;
@@ -8,16 +9,19 @@ import com.witboost.provisioning.model.request.ReverseProvisionOperationRequest;
 import com.witboost.provisioning.model.status.ProvisionInfo;
 import com.witboost.provisioning.model.status.ReverseProvisionInfo;
 import io.vavr.control.Either;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-// TODO If your tech adapter doesn't support workloads, remove this class and its configuration
-//  on the ProvisionConfigurationBean
 @Component
 public class WorkloadProvisionService implements ProvisionService {
+
+    @Autowired
+    SourceManager sourceManager;
+
     @Override
     public Either<FailedOperation, ProvisionInfo> provision(
             ProvisionOperationRequest<?, ? extends Specific> operationRequest) {
-        // TODO Remember to remove the super call and implement the provision for the workload.
+
         return ProvisionService.super.provision(operationRequest);
     }
 

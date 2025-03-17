@@ -20,6 +20,6 @@ springdoc:
     path: /docs
 
 
-token: ${SIFFLET_TOKEN}
-basePath: ${SIFFLET_BASE_PATH}
-sourceUpdateTimeoutSeconds: ${SOURCE_UPDATE_TIMEOUT_SECONDS}
+token: "fake-token"
+basePath: "https://sandbox.siffletdata.com"
+sourceUpdateTimeoutSeconds: 120

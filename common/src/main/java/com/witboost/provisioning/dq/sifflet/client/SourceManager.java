@@ -1,0 +1,336 @@
+package com.witboost.provisioning.dq.sifflet.client;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.witboost.provisioning.dq.sifflet.model.*;
+import com.witboost.provisioning.dq.sifflet.model.client.*;
+import com.witboost.provisioning.dq.sifflet.utils.OkHttpUtils;
+import com.witboost.provisioning.dq.sifflet.utils.Utils;
+import com.witboost.provisioning.model.common.FailedOperation;
+import com.witboost.provisioning.model.common.Problem;
+import io.vavr.control.Either;
+import jakarta.annotation.PostConstruct;
+import jakarta.validation.constraints.NotBlank;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+import okhttp3.*;
+import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+@Service
+public class SourceManager {
+
+    private final Logger logger = LoggerFactory.getLogger(SourceManager.class);
+
+    @Value("${token}")
+    private String token;
+
+    @Value("${basePath}")
+    private String basePath;
+
+    @Value("${sourceUpdateTimeoutSeconds:30}")
+    private int sourceUpdateTimeoutSeconds;
+
+    private final ObjectMapper objectMapper;
+
+    private final OkHttpClient okHttpClient;
+
+    private static final String API_V1_SOURCES = "/api/v1/sources/";
+    private static final String API_UI_V1_DATASOURCES = "/api/ui/v1/datasources";
+
+    public SourceManager(ObjectMapper objectMapper, OkHttpClient okHttpClient) {
+        this.objectMapper = objectMapper;
+        this.okHttpClient = okHttpClient;
+    }
+
+    @PostConstruct
+    public void validateTimeout() {
+        if (sourceUpdateTimeoutSeconds <= 0) {
+            throw new IllegalArgumentException(
+                    "Source update timeout must be greater than zero. "
+                            + "Please check the 'SOURCE_UPDATE_TIMEOUT_SECONDS' environment variable or application configuration.");
+        }
+    }
+
+    public Either<FailedOperation, Void> provisionSource(
+            @NotNull AthenaEntity athenaEntity, @NotNull SiffletSpecific siffletSpecific, @NotBlank String roleArn) {
+        try {
+            String sourceName = computeSourceName(athenaEntity.getDatabase());
+            Either<FailedOperation, Optional<Source>> sourceFromName = getSourceFromName(sourceName);
+
+            if (sourceFromName.isLeft()) return Either.left(sourceFromName.getLeft());
+
+            if (sourceFromName.get().isEmpty()) {
+                Either<FailedOperation, CreateSourceResponse> createSource =
+                        createSource(athenaEntity, siffletSpecific, roleArn, sourceName);
+                if (createSource.isLeft()) return Either.left(createSource.getLeft());
+
+                return waitForSourceToBeUpdated(createSource.get().getId(), sourceName);
+
+            } else {
+                Source source = sourceFromName.get().get();
+                logger.info("Refreshing source: {}", sourceName);
+                Either<FailedOperation, Void> sourceRefresh = triggerSourceRefresh(source.getId());
+                if (sourceRefresh.isLeft()) return Either.left(sourceRefresh.getLeft());
+
+                Either<FailedOperation, Source> updatedSource = getSourceFromID(source.getId());
+                if (updatedSource.isLeft()) return Either.left(updatedSource.getLeft());
+
+                return waitForSourceToBeUpdated(updatedSource.get().getId(), sourceName);
+            }
+
+        } catch (Exception e) {
+            String error = String.format(
+                    "Unexpected error while provisioning source '%s': %s", athenaEntity.getDatabase(), e.getMessage());
+            logger.error(error, e);
+            return Either.left(new FailedOperation(error, List.of(new Problem(error, e))));
+        }
+    }
+
+    protected Either<FailedOperation, Source> getSourceFromID(String sourceID) {
+        try {
+            String url = basePath + API_V1_SOURCES + sourceID;
+            Request request = OkHttpUtils.buildGetRequest(url, token);
+
+            Response response = executeRequest(request);
+
+            if (!response.isSuccessful() || response.body() == null) {
+                String responseBody = response.body() != null ? response.body().string() : "No response body";
+                String error = String.format(
+                        "Error getting source information for source with ID: %s. Response: %s",
+                        sourceID, responseBody);
+                logger.error(error);
+                return Either.left(new FailedOperation(error, List.of(new Problem(error))));
+            }
+
+            String responseBody = response.body().string();
+            return parseResponseBody(responseBody, Source.class);
+
+        } catch (Exception e) {
+            String error = String.format(
+                    "Unexpected error while getting source information for source with ID: %s. Details: %s",
+                    sourceID, e.getMessage());
+            logger.error(error, e);
+            return Either.left(new FailedOperation(error, List.of(new Problem(error, e))));
+        }
+    }
+
+    private <T> Either<FailedOperation, T> parseResponseBody(String responseBody, Class<T> tClass) {
+        try {
+            return Either.right(objectMapper.readValue(responseBody, tClass));
+        } catch (IOException e) {
+            String error = "Error parsing HTTP response: " + e.getMessage();
+            logger.error(error, e);
+            return Either.left(new FailedOperation(error, List.of(new Problem(error, e))));
+        }
+    }
+
+    @NotNull
+    protected Either<FailedOperation, CreateSourceResponse> createSource(
+            AthenaEntity athenaEntity, SiffletSpecific siffletSpecific, String roleArn, String sourceName) {
+        try {
+            CreateSourceRequest createSourceRequest = createSourceRequest(athenaEntity, siffletSpecific, roleArn);
+            String jsonRequest = objectMapper.writeValueAsString(createSourceRequest);
+            String url = basePath + API_UI_V1_DATASOURCES;
+            Request request = OkHttpUtils.buildPostRequest(url, jsonRequest, token);
+
+            logger.info("Creating new source: {}", sourceName);
+            Response response = executeRequest(request);
+
+            if (!response.isSuccessful() || response.body() == null) {
+                String responseBody = response.body() != null ? response.body().string() : "No response body";
+                String error = String.format(
+                        "Failed to create source: %s. %s. Response: %s.", sourceName, response.message(), responseBody);
+                logger.error(error);
+                return Either.left(new FailedOperation(error, List.of(new Problem(error))));
+            }
+
+            String responseBody = response.body().string();
+
+            Either<FailedOperation, CreateSourceResponse> createSourceResponse =
+                    parseResponseBody(responseBody, CreateSourceResponse.class);
+            if (createSourceResponse.isLeft()) return Either.left(createSourceResponse.getLeft());
+
+            logger.info("Source created successfully: {}", sourceName);
+
+            return Either.right(createSourceResponse.get());
+        } catch (Exception e) {
+            String error = String.format(
+                    "Unexpected error while creating source '%s': %s", athenaEntity.getDatabase(), e.getMessage());
+            logger.error(error, e);
+            return Either.left(new FailedOperation(error, List.of(new Problem(error, e))));
+        }
+    }
+
+    public Either<FailedOperation, Optional<Source>> getSourceFromName(String sourceName) {
+        try {
+            logger.info("Checking existence of source: {}", sourceName);
+
+            String url = basePath + API_V1_SOURCES + "search";
+            String jsonBody = String.format(
+                    "{\"filter\":{\"textSearch\":\"%s\"},\"pagination\":{\"itemsPerPage\":-1,\"page\":0}}", sourceName);
+
+            Request request = OkHttpUtils.buildPostRequest(url, jsonBody, token);
+
+            Response response = executeRequest(request);
+
+            if (!response.isSuccessful() || response.body() == null) {
+                String responseBody = response.body() != null ? response.body().string() : "No response body";
+                String errorMessage = String.format(
+                        "Failed to fetch sources. HTTP %d: %s. Details: %s",
+                        response.code(), response.message(), responseBody);
+
+                return Either.left(new FailedOperation(errorMessage, List.of(new Problem(errorMessage))));
+            }
+
+            String responseBody = response.body().string();
+
+            Either<FailedOperation, GetSourcesResponse> getSourcesResponse =
+                    parseResponseBody(responseBody, GetSourcesResponse.class);
+            if (getSourcesResponse.isLeft()) return Either.left(getSourcesResponse.getLeft());
+
+            Optional<Source> foundSource = getSourcesResponse.get().getData().stream()
+                    .filter(source -> source.getName().equals(sourceName))
+                    .findFirst();
+
+            if (foundSource.isPresent()) {
+                logger.info(
+                        "Source '{}' found with ID: {}",
+                        sourceName,
+                        foundSource.get().getId());
+            } else {
+                logger.info("Source '{}' not found.", sourceName);
+            }
+
+            return Either.right(foundSource);
+
+        } catch (Exception e) {
+            String error = String.format(
+                    "An unexpected error occurred while looking for source named '%s'. Details: %s",
+                    sourceName, e.getMessage());
+            logger.error(error, e);
+            return Either.left(new FailedOperation(error, List.of(new Problem(error, e))));
+        }
+    }
+
+    protected Either<FailedOperation, Void> triggerSourceRefresh(String sourceID) {
+        try {
+            String url = String.format("%s%s/%s/run", basePath, API_V1_SOURCES, sourceID);
+            Request request = OkHttpUtils.buildPostRequest(url, "{}", token);
+
+            Response response = executeRequest(request);
+
+            if (!response.isSuccessful()) {
+                String responseBody = response.body() != null ? response.body().string() : "No response body";
+
+                String error = String.format(
+                        "Failed to trigger source metadata ingestion job for source %s. Response status code: %d. Details: %s. Response: %s",
+                        sourceID, response.code(), response.message(), responseBody);
+                return Either.left(new FailedOperation(error, List.of()));
+            }
+
+            return Either.right(null);
+
+        } catch (Exception e) {
+            String error = String.format(
+                    "An unexpected error occurred while trying to update source with ID '%s'. Details: %s",
+                    sourceID, e.getMessage());
+            logger.error(error, e);
+            return Either.left(new FailedOperation(error, List.of(new Problem(error, e))));
+        }
+    }
+
+    @NotNull
+    protected static CreateSourceRequest createSourceRequest(
+            AthenaEntity athenaEntity, SiffletSpecific siffletSpecific, String roleArn) {
+
+        String description = "Source for database: " + athenaEntity.getDatabase();
+
+        CreateSourceRequest.Params params = new CreateSourceRequest.Params(
+                SourceType.ATHENA.getValue(),
+                athenaEntity.getCatalog(),
+                athenaEntity.getRegion().id(),
+                athenaEntity.getS3Bucket() + "sifflet/" + athenaEntity.getDatabase(),
+                athenaEntity.getWorkGroup(),
+                athenaEntity.getDatabase(),
+                roleArn,
+                "");
+
+        return new CreateSourceRequest(
+                computeSourceName(athenaEntity.getDatabase()),
+                description,
+                SourceType.ATHENA.getValue(),
+                params,
+                Collections.emptyList(),
+                siffletSpecific.getDataSourceRefreshCron());
+    }
+
+    protected static String computeSourceName(String databaseName) {
+
+        String hash = Utils.sha256(databaseName);
+
+        return databaseName + hash.substring(0, 5);
+    }
+
+    protected Response executeRequest(Request request) throws IOException {
+        return okHttpClient.newCall(request).execute();
+    }
+
+    protected Either<FailedOperation, Void> waitForSourceToBeUpdated(String sourceID, String sourceName) {
+        try {
+            long startTime = System.currentTimeMillis();
+            long timeout = sourceUpdateTimeoutSeconds * 1000L;
+
+            logger.info(
+                    "Waiting for source '{}' to be updated. Timeout: {} seconds",
+                    sourceName,
+                    sourceUpdateTimeoutSeconds);
+
+            while (true) {
+                Either<FailedOperation, Source> source = getSourceFromID(sourceID);
+                if (source.isLeft()) return Either.left(source.getLeft());
+
+                String status = source.get().getLastrun().getStatus();
+                logger.info("Current status of source '{}': {}", sourceName, status);
+
+                switch (status) {
+                    case "SUCCESS":
+                        logger.info("Source '{}' successfully updated.", sourceName);
+                        return Either.right(null);
+                    case "FAILURE":
+                        String errorFailedUpdate = String.format("Update of source %s failed.", sourceName);
+                        logger.error(errorFailedUpdate);
+                        return Either.left(
+                                new FailedOperation(errorFailedUpdate, List.of(new Problem(errorFailedUpdate))));
+                    case "SKIPPED_DATASOURCE_ALREADY_RUNNING":
+                        String errorSkippedUpdate =
+                                String.format("Update of source %s skipped (datasource already running).", sourceName);
+                        logger.error(errorSkippedUpdate);
+                        return Either.left(
+                                new FailedOperation(errorSkippedUpdate, List.of(new Problem(errorSkippedUpdate))));
+                    default:
+                        if (System.currentTimeMillis() - startTime > timeout) {
+                            String errorTimeOut = String.format(
+                                    "Update of source %s timeout: execution time exceeded %d seconds",
+                                    sourceName, sourceUpdateTimeoutSeconds);
+                            logger.error(errorTimeOut);
+                            return Either.left(new FailedOperation(errorTimeOut, List.of(new Problem(errorTimeOut))));
+                        }
+
+                        Thread.sleep(3000);
+                }
+            }
+
+        } catch (Exception e) {
+            String error = String.format(
+                    "An unexpected error waiting for the completion of the update of the source %s. Details: %s",
+                    sourceID, e.getMessage());
+            logger.error(error, e);
+            return Either.left(new FailedOperation(error, List.of(new Problem(error, e))));
+        }
+    }
+}

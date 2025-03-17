@@ -19,6 +19,7 @@ public class WorkloadValidationService implements ComponentValidationService {
         // TODO Remember to remove the super call and implement the validation for the workload.
         //  If your tech adapter doesn't support storage areas, remove this class and its configuration
         //  on the ValidationConfigurationBean
+
         return ComponentValidationService.super.validate(operationRequest, operationType);
     }
 }
