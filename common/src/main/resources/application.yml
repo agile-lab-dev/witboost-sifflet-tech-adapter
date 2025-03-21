@@ -19,7 +19,9 @@ springdoc:
   swagger-ui:
     path: /docs
 
-
-token: ${SIFFLET_TOKEN}
-basePath: ${SIFFLET_BASE_PATH}
-sourceUpdateTimeoutSeconds: ${SOURCE_UPDATE_TIMEOUT_SECONDS}
+sifflet:
+  token: ${SIFFLET_TOKEN}
+  basePath: ${SIFFLET_BASE_PATH}
+  sourceUpdateTimeoutSeconds: ${SOURCE_UPDATE_TIMEOUT_SECONDS}
+  athena:
+    iamRole: ${SIFFLET_SOURCE_IAM_ROLE}

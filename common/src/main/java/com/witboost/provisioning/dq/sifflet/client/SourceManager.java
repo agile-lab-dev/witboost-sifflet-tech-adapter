@@ -26,13 +26,13 @@ public class SourceManager {
 
     private final Logger logger = LoggerFactory.getLogger(SourceManager.class);
 
-    @Value("${token}")
+    @Value("${sifflet.token}")
     private String token;
 
-    @Value("${basePath}")
+    @Value("${sifflet.basePath}")
     private String basePath;
 
-    @Value("${sourceUpdateTimeoutSeconds:30}")
+    @Value("${sifflet.sourceUpdateTimeoutSeconds:30}")
     private int sourceUpdateTimeoutSeconds;
 
     private final ObjectMapper objectMapper;
@@ -56,7 +56,7 @@ public class SourceManager {
         }
     }
 
-    public Either<FailedOperation, Void> provisionSource(
+    public Either<FailedOperation, String> provisionSource(
             @NotNull AthenaEntity athenaEntity, @NotNull SiffletSpecific siffletSpecific, @NotBlank String roleArn) {
         try {
             String sourceName = computeSourceName(athenaEntity.getDatabase());
@@ -69,7 +69,8 @@ public class SourceManager {
                         createSource(athenaEntity, siffletSpecific, roleArn, sourceName);
                 if (createSource.isLeft()) return Either.left(createSource.getLeft());
 
-                return waitForSourceToBeUpdated(createSource.get().getId(), sourceName);
+                return waitForSourceToBeUpdated(createSource.get().getId(), sourceName)
+                        .map(v -> createSource.get().getId());
 
             } else {
                 Source source = sourceFromName.get().get();
@@ -80,14 +81,19 @@ public class SourceManager {
                 Either<FailedOperation, Source> updatedSource = getSourceFromID(source.getId());
                 if (updatedSource.isLeft()) return Either.left(updatedSource.getLeft());
 
-                return waitForSourceToBeUpdated(updatedSource.get().getId(), sourceName);
+                return waitForSourceToBeUpdated(updatedSource.get().getId(), sourceName)
+                        .map(v -> updatedSource.get().getId());
             }
 
         } catch (Exception e) {
             String error = String.format(
                     "Unexpected error while provisioning source '%s': %s", athenaEntity.getDatabase(), e.getMessage());
             logger.error(error, e);
-            return Either.left(new FailedOperation(error, List.of(new Problem(error, e))));
+            return Either.left(new FailedOperation(
+                    String.format(
+                            "Unexpected error while provisioning source '%s'. Check details for more information",
+                            athenaEntity.getDatabase()),
+                    List.of(new Problem(error, e))));
         }
     }
 
@@ -104,7 +110,11 @@ public class SourceManager {
                         "Error getting source information for source with ID: %s. Response: %s",
                         sourceID, responseBody);
                 logger.error(error);
-                return Either.left(new FailedOperation(error, List.of(new Problem(error))));
+                return Either.left(new FailedOperation(
+                        String.format(
+                                "Error getting source information for source with ID '%s'. Check details for more information",
+                                sourceID),
+                        List.of(new Problem(error))));
             }
 
             String responseBody = response.body().string();
@@ -115,7 +125,11 @@ public class SourceManager {
                     "Unexpected error while getting source information for source with ID: %s. Details: %s",
                     sourceID, e.getMessage());
             logger.error(error, e);
-            return Either.left(new FailedOperation(error, List.of(new Problem(error, e))));
+            return Either.left(new FailedOperation(
+                    String.format(
+                            "Unexpected error while getting source information for source with ID '%s'. Check details for more information",
+                            sourceID),
+                    List.of(new Problem(error, e))));
         }
     }
 
@@ -146,7 +160,9 @@ public class SourceManager {
                 String error = String.format(
                         "Failed to create source: %s. %s. Response: %s.", sourceName, response.message(), responseBody);
                 logger.error(error);
-                return Either.left(new FailedOperation(error, List.of(new Problem(error))));
+                return Either.left(new FailedOperation(
+                        String.format("Failed to create source '%s'. Check details for more information", sourceName),
+                        List.of(new Problem(error))));
             }
 
             String responseBody = response.body().string();
@@ -162,7 +178,11 @@ public class SourceManager {
             String error = String.format(
                     "Unexpected error while creating source '%s': %s", athenaEntity.getDatabase(), e.getMessage());
             logger.error(error, e);
-            return Either.left(new FailedOperation(error, List.of(new Problem(error, e))));
+            return Either.left(new FailedOperation(
+                    String.format(
+                            "Unexpected error while creating source '%s'. Check details for more information",
+                            athenaEntity.getDatabase()),
+                    List.of(new Problem(error, e))));
         }
     }
 
@@ -184,7 +204,9 @@ public class SourceManager {
                         "Failed to fetch sources. HTTP %d: %s. Details: %s",
                         response.code(), response.message(), responseBody);
 
-                return Either.left(new FailedOperation(errorMessage, List.of(new Problem(errorMessage))));
+                return Either.left(new FailedOperation(
+                        "Failed to fetch sources from Sifflet environment. Check details for more information",
+                        List.of(new Problem(errorMessage))));
             }
 
             String responseBody = response.body().string();
@@ -213,7 +235,11 @@ public class SourceManager {
                     "An unexpected error occurred while looking for source named '%s'. Details: %s",
                     sourceName, e.getMessage());
             logger.error(error, e);
-            return Either.left(new FailedOperation(error, List.of(new Problem(error, e))));
+            return Either.left(new FailedOperation(
+                    String.format(
+                            "An unexpected error occurred while looking for source named '%s'. Check details for more information",
+                            sourceName),
+                    List.of(new Problem(error, e))));
         }
     }
 
@@ -230,7 +256,11 @@ public class SourceManager {
                 String error = String.format(
                         "Failed to trigger source metadata ingestion job for source %s. Response status code: %d. Details: %s. Response: %s",
                         sourceID, response.code(), response.message(), responseBody);
-                return Either.left(new FailedOperation(error, List.of()));
+                return Either.left(new FailedOperation(
+                        String.format(
+                                "Failed to trigger source metadata ingestion job for source '%s'. Check details for more information",
+                                sourceID),
+                        List.of(new Problem(error))));
             }
 
             return Either.right(null);
@@ -240,7 +270,11 @@ public class SourceManager {
                     "An unexpected error occurred while trying to update source with ID '%s'. Details: %s",
                     sourceID, e.getMessage());
             logger.error(error, e);
-            return Either.left(new FailedOperation(error, List.of(new Problem(error, e))));
+            return Either.left(new FailedOperation(
+                    String.format(
+                            "An unexpected error occurred while trying to update source with ID '%s'. Check details for more information",
+                            sourceID),
+                    List.of(new Problem(error, e))));
         }
     }
 
@@ -302,20 +336,20 @@ public class SourceManager {
                         logger.info("Source '{}' successfully updated.", sourceName);
                         return Either.right(null);
                     case "FAILURE":
-                        String errorFailedUpdate = String.format("Update of source %s failed.", sourceName);
+                        String errorFailedUpdate = String.format("Update of source '%s' failed.", sourceName);
                         logger.error(errorFailedUpdate);
                         return Either.left(
                                 new FailedOperation(errorFailedUpdate, List.of(new Problem(errorFailedUpdate))));
                     case "SKIPPED_DATASOURCE_ALREADY_RUNNING":
-                        String errorSkippedUpdate =
-                                String.format("Update of source %s skipped (datasource already running).", sourceName);
+                        String errorSkippedUpdate = String.format(
+                                "Update of source '%s' skipped (datasource already running).", sourceName);
                         logger.error(errorSkippedUpdate);
                         return Either.left(
                                 new FailedOperation(errorSkippedUpdate, List.of(new Problem(errorSkippedUpdate))));
                     default:
                         if (System.currentTimeMillis() - startTime > timeout) {
                             String errorTimeOut = String.format(
-                                    "Update of source %s timeout: execution time exceeded %d seconds",
+                                    "Update of source '%s' timeout: execution time exceeded %d seconds",
                                     sourceName, sourceUpdateTimeoutSeconds);
                             logger.error(errorTimeOut);
                             return Either.left(new FailedOperation(errorTimeOut, List.of(new Problem(errorTimeOut))));
@@ -330,7 +364,11 @@ public class SourceManager {
                     "An unexpected error waiting for the completion of the update of the source %s. Details: %s",
                     sourceID, e.getMessage());
             logger.error(error, e);
-            return Either.left(new FailedOperation(error, List.of(new Problem(error, e))));
+            return Either.left(new FailedOperation(
+                    String.format(
+                            "An unexpected error waiting for the completion of the update of the source %s. Check details for more information",
+                            sourceID),
+                    List.of(new Problem(error, e))));
         }
     }
 }

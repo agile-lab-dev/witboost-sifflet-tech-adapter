@@ -10,7 +10,7 @@ import lombok.*;
 @EqualsAndHashCode
 @ToString
 @NoArgsConstructor(force = true)
-@AllArgsConstructor
+@RequiredArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeInfo(
@@ -25,10 +25,10 @@ import lombok.*;
     @JsonSubTypes.Type(value = Parameters.SchemaChange.class, name = "SchemaChange")
 })
 public class Parameters {
-    private String kind;
+    private final String kind;
 
     @JsonIgnore
-    private Map<String, JsonNode> additionalProperties = new HashMap<>();
+    private final Map<String, JsonNode> additionalProperties = new HashMap<>();
 
     @Getter
     @EqualsAndHashCode(callSuper = true)
@@ -36,10 +36,17 @@ public class Parameters {
     @NoArgsConstructor(force = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonIgnoreProperties(ignoreUnknown = true)
-    static class FieldNulls extends Parameters {
+    public static class FieldNulls extends Parameters {
         private final String field;
         private final String nullValues;
-        private final JsonNode threshold;
+        private final Threshold threshold;
+
+        public FieldNulls(String field, String nullValues, Threshold threshold) {
+            super("FieldNulls");
+            this.field = field;
+            this.nullValues = nullValues;
+            this.threshold = threshold;
+        }
     }
 
     @Getter
@@ -48,12 +55,17 @@ public class Parameters {
     @NoArgsConstructor(force = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonIgnoreProperties(ignoreUnknown = true)
-    static class FieldDuplicates extends Parameters {
+    public static class FieldDuplicates extends Parameters {
         /**
          * field can be either a single string or a string list, so as long as we don't need to validate this value
          * we leave it as json
          */
         private final JsonNode field;
+
+        public FieldDuplicates(JsonNode field) {
+            super("FieldDuplicates");
+            this.field = field;
+        }
     }
 
     @Getter
@@ -62,15 +74,39 @@ public class Parameters {
     @NoArgsConstructor(force = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonIgnoreProperties(ignoreUnknown = true)
-    static class RowDuplicates extends Parameters {}
+    public static class RowDuplicates extends Parameters {
+        private final Threshold threshold;
+
+        public RowDuplicates(Threshold threshold) {
+            super("RowDuplicates");
+            this.threshold = threshold;
+        }
+    }
 
     @Getter
     @EqualsAndHashCode(callSuper = true)
     @ToString(callSuper = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class SchemaChange extends Parameters {
+        public SchemaChange() {
+            super("SchemaChange");
+        }
+    }
+
+    // TODO This can be further improved to include more threshold types,
+    //  but for now we leave it as-is
+    @Getter
+    @EqualsAndHashCode
+    @AllArgsConstructor
     @NoArgsConstructor(force = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonIgnoreProperties(ignoreUnknown = true)
-    static class SchemaChange extends Parameters {}
+    public static class Threshold {
+        private final String kind;
+        private final String valueMode;
+        private final String max;
+    }
 
     // Capture all other fields that Jackson do not match other members
     @JsonAnyGetter

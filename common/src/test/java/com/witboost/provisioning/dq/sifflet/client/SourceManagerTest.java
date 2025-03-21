@@ -6,13 +6,14 @@ import static org.mockito.Mockito.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.witboost.provisioning.dq.sifflet.model.AthenaEntity;
 import com.witboost.provisioning.dq.sifflet.model.SiffletSpecific;
+import com.witboost.provisioning.dq.sifflet.model.cli.Notification;
 import com.witboost.provisioning.dq.sifflet.model.client.*;
 import com.witboost.provisioning.dq.sifflet.utils.OkHttpUtils;
-import com.witboost.provisioning.model.DataContract;
 import com.witboost.provisioning.model.common.FailedOperation;
 import io.vavr.control.Either;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import okhttp3.*;
 import org.junit.jupiter.api.*;
@@ -48,7 +49,7 @@ class SourceManagerTest {
     void init() {
         String basePath = "https://base/path";
         ReflectionTestUtils.setField(sourceManager, "basePath", basePath);
-        ReflectionTestUtils.setField(sourceManager, "token", "Bearer test-token");
+        ReflectionTestUtils.setField(sourceManager, "token", "test-token");
     }
 
     private void createMockCall(Response mockResponseObj) throws IOException {
@@ -120,16 +121,10 @@ class SourceManagerTest {
         source.setLastrun(new LastRun("SUCCESS", "0123"));
         doReturn(Either.right(source)).when(sourceManagerSpy).getSourceFromID(anyString());
 
-        Either<FailedOperation, Void> result = sourceManagerSpy.provisionSource(
+        Either<FailedOperation, String> result = sourceManagerSpy.provisionSource(
                 new AthenaEntity(
-                        "AwsDataCatalog",
-                        "database",
-                        "source_table",
-                        new DataContract(),
-                        Region.EU_WEST_1,
-                        "primary",
-                        "s3://testbucket"),
-                new SiffletSpecific("cron"),
+                        "AwsDataCatalog", "database", "source_table", Region.EU_WEST_1, "primary", "s3://testbucket"),
+                new SiffletSpecific("cron", new Notification.Email("john.doe@witboost.com"), List.of()),
                 "roleArn");
 
         assert (result.isRight());
@@ -150,16 +145,10 @@ class SourceManagerTest {
         doReturn(Either.right(null)).when(sourceManagerSpy).triggerSourceRefresh(anyString());
         doReturn(Either.right(source)).when(sourceManagerSpy).getSourceFromID(anyString());
 
-        Either<FailedOperation, Void> result = sourceManagerSpy.provisionSource(
+        Either<FailedOperation, String> result = sourceManagerSpy.provisionSource(
                 new AthenaEntity(
-                        "AwsDataCatalog",
-                        "database",
-                        "source_table",
-                        new DataContract(),
-                        Region.EU_WEST_1,
-                        "primary",
-                        "s3://testbucket"),
-                new SiffletSpecific("cron"),
+                        "AwsDataCatalog", "database", "source_table", Region.EU_WEST_1, "primary", "s3://testbucket"),
+                new SiffletSpecific("cron", new Notification.Email("john.doe@witboost.com"), List.of()),
                 "roleArn");
 
         assert (result.isRight());
@@ -201,7 +190,8 @@ class SourceManagerTest {
         Either<FailedOperation, Void> result = sourceManagerSpy.triggerSourceRefresh(sourceId);
 
         assertThat(result.isLeft()).isTrue();
-        assertThat(result.getLeft().message().contains(mockResponseObj.message()));
+        assertThatCollection(result.getLeft().problems())
+                .anyMatch(problem -> problem.getMessage().contains(mockResponseObj.message()));
     }
 
     @Test
@@ -256,7 +246,8 @@ class SourceManagerTest {
         Either<FailedOperation, Optional<Source>> result = sourceManagerSpy.getSourceFromName("source-name");
 
         assertThat(result.isLeft()).isTrue();
-        assertThat(result.getLeft().message()).contains("Internal Server Error");
+        assertThatCollection(result.getLeft().problems())
+                .anyMatch(problem -> problem.getMessage().contains("Internal Server Error"));
     }
 
     @Test
@@ -277,20 +268,14 @@ class SourceManagerTest {
             createMockCall(mockErrorResponse);
 
             Either<FailedOperation, CreateSourceResponse> result = sourceManagerSpy.createSource(
-                    new AthenaEntity(
-                            "AwsDataCatalog",
-                            "database",
-                            "table",
-                            new DataContract(),
-                            Region.EU_WEST_1,
-                            "primary",
-                            "s3://test"),
-                    new SiffletSpecific("cron"),
+                    new AthenaEntity("AwsDataCatalog", "database", "table", Region.EU_WEST_1, "primary", "s3://test"),
+                    new SiffletSpecific("cron", new Notification.Email("john.doe@witboost.com"), List.of()),
                     "roleArn",
                     "some-token");
 
             assertThat(result.isLeft()).isTrue();
-            assertThat(result.getLeft().message()).contains("Bad Request");
+            assertThatCollection(result.getLeft().problems())
+                    .anyMatch(problem -> problem.getMessage().contains("Bad Request"));
         }
     }
 
@@ -309,8 +294,8 @@ class SourceManagerTest {
         Either<FailedOperation, Void> result = sourceManagerSpy.triggerSourceRefresh("1234");
 
         assertThat(result.isLeft()).isTrue();
-        assertThat(result.getLeft().message())
-                .contains("Failed to trigger source metadata ingestion job for source 1234");
+        assertThatCollection(result.getLeft().problems()).anyMatch(problem -> problem.getMessage()
+                .contains("Failed to trigger source metadata ingestion job for source 1234"));
     }
 
     @Test
@@ -334,16 +319,10 @@ class SourceManagerTest {
                 .when(sourceManagerSpy)
                 .createSource(any(AthenaEntity.class), any(SiffletSpecific.class), anyString(), anyString());
 
-        Either<FailedOperation, Void> result = sourceManagerSpy.provisionSource(
+        Either<FailedOperation, String> result = sourceManagerSpy.provisionSource(
                 new AthenaEntity(
-                        "AwsDataCatalog",
-                        "database",
-                        "source_table",
-                        new DataContract(),
-                        Region.EU_WEST_1,
-                        "primary",
-                        "s3://testbucket"),
-                new SiffletSpecific("cron"),
+                        "AwsDataCatalog", "database", "source_table", Region.EU_WEST_1, "primary", "s3://testbucket"),
+                new SiffletSpecific("cron", new Notification.Email("john.doe@witboost.com"), List.of()),
                 "roleArn");
 
         assertThat(result.isLeft()).isTrue();
@@ -366,7 +345,8 @@ class SourceManagerTest {
         Either<FailedOperation, Optional<Source>> result = sourceManagerSpy.getSourceFromName("source-name");
 
         assertThat(result.isLeft()).isTrue();
-        assertThat(result.getLeft().message()).contains("Request Timeout");
+        assertThatCollection(result.getLeft().problems())
+                .anyMatch(problem -> problem.getMessage().contains("Request Timeout"));
     }
 
     @Test
@@ -385,16 +365,10 @@ class SourceManagerTest {
                 .when(sourceManagerSpy)
                 .triggerSourceRefresh(anyString());
 
-        Either<FailedOperation, Void> result = sourceManagerSpy.provisionSource(
+        Either<FailedOperation, String> result = sourceManagerSpy.provisionSource(
                 new AthenaEntity(
-                        "AwsDataCatalog",
-                        "database",
-                        "source_table",
-                        new DataContract(),
-                        Region.EU_WEST_1,
-                        "primary",
-                        "s3://testbucket"),
-                new SiffletSpecific("cron"),
+                        "AwsDataCatalog", "database", "source_table", Region.EU_WEST_1, "primary", "s3://testbucket"),
+                new SiffletSpecific("cron", new Notification.Email("john.doe@witboost.com"), List.of()),
                 "roleArn");
 
         assertThat(result.isLeft()).isTrue();
@@ -418,7 +392,8 @@ class SourceManagerTest {
         Either<FailedOperation, Void> result = sourceManagerSpy.triggerSourceRefresh(invalidSourceId);
 
         assertThat(result.isLeft()).isTrue();
-        assertThat(result.getLeft().message()).contains("Bad Request");
+        assertThatCollection(result.getLeft().problems())
+                .anyMatch(problem -> problem.getMessage().contains("Bad Request"));
     }
 
     @Test
@@ -434,7 +409,8 @@ class SourceManagerTest {
         Either<FailedOperation, Void> result = sourceManagerSpy.waitForSourceToBeUpdated(sourceId, "source-name");
 
         assertThat(result.isLeft()).isTrue();
-        assertThat(result.getLeft().message()).contains("Update of source source-name failed.");
+        assertThatCollection(result.getLeft().problems())
+                .anyMatch(problem -> problem.getMessage().contains("Update of source 'source-name' failed."));
     }
 
     @Test
@@ -479,7 +455,8 @@ class SourceManagerTest {
         Either<FailedOperation, Void> result = sourceManagerSpy.waitForSourceToBeUpdated(sourceId, "source-name");
 
         assertThat(result.isLeft()).isTrue();
-        assertThat(result.getLeft().message()).contains("Details: Unexpected error");
+        assertThatCollection(result.getLeft().problems())
+                .anyMatch(problem -> problem.getMessage().contains("Details: Unexpected error"));
     }
 
     @Test
@@ -493,7 +470,8 @@ class SourceManagerTest {
         Either<FailedOperation, Optional<Source>> result = sourceManagerSpy.getSourceFromName(sourceName);
 
         assertThat(result.isLeft()).isTrue();
-        assertThat(result.getLeft().message()).contains("runtime exception");
+        assertThatCollection(result.getLeft().problems())
+                .anyMatch(problem -> problem.getMessage().contains("runtime exception"));
     }
 
     @Test
@@ -519,15 +497,8 @@ class SourceManagerTest {
             doReturn(createSourceResponse).when(objectMapper).readValue(Mockito.anyString(), Mockito.any(Class.class));
 
             Either<FailedOperation, CreateSourceResponse> result = sourceManagerSpy.createSource(
-                    new AthenaEntity(
-                            "AwsDataCatalog",
-                            "database",
-                            "table",
-                            new DataContract(),
-                            Region.EU_WEST_1,
-                            "primary",
-                            "s3://test"),
-                    new SiffletSpecific("cron"),
+                    new AthenaEntity("AwsDataCatalog", "database", "table", Region.EU_WEST_1, "primary", "s3://test"),
+                    new SiffletSpecific("cron", new Notification.Email("john.doe@witboost.com"), List.of()),
                     "roleArn",
                     "some-token");
 
@@ -539,8 +510,8 @@ class SourceManagerTest {
 
     @Test
     void shouldReturnError_whenUnexpectedExceptionOccursWhileCreatingSource() throws Exception {
-        AthenaEntity athenaEntity = new AthenaEntity(
-                "AwsDataCatalog", "database", "table", new DataContract(), Region.EU_WEST_1, "primary", "s3://test");
+        AthenaEntity athenaEntity =
+                new AthenaEntity("AwsDataCatalog", "database", "table", Region.EU_WEST_1, "primary", "s3://test");
 
         Response mockResponseObj = new Response.Builder()
                 .request(new Request.Builder().url("http://localhost").build())
@@ -560,12 +531,16 @@ class SourceManagerTest {
             when(objectMapper.readValue(anyString(), eq(CreateSourceResponse.class)))
                     .thenThrow(new RuntimeException("Simulated error"));
 
-            Either<FailedOperation, CreateSourceResponse> result =
-                    sourceManagerSpy.createSource(athenaEntity, new SiffletSpecific("cron"), "roleArn", "source-name");
+            Either<FailedOperation, CreateSourceResponse> result = sourceManagerSpy.createSource(
+                    athenaEntity,
+                    new SiffletSpecific("cron", new Notification.Email("john.doe@witboost.com"), List.of()),
+                    "roleArn",
+                    "source-name");
 
             assertThat(result.isLeft()).isTrue();
             assertThat(result.getLeft().message()).contains("Unexpected error while creating source 'database'");
-            assertThat(result.getLeft().message()).contains("Simulated error");
+            assertThatCollection(result.getLeft().problems())
+                    .anyMatch(problem -> problem.getMessage().contains("Simulated error"));
         }
     }
 }

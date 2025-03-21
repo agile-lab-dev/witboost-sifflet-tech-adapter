@@ -24,17 +24,14 @@ public class SiffletCLI {
 
     private final FileManager fileManager;
 
-    private final List<String> initialCommands;
-
     public SiffletCLI(FileManager fileManager) {
         this.fileManager = fileManager;
-        this.initialCommands = System.getProperty("os.name").toLowerCase().startsWith("win")
-                ? List.of("cmd.exe", "/c")
-                : List.of("sh", "-c");
     }
 
     private List<String> buildCommand(String... strings) {
-        return Stream.concat(this.initialCommands.stream(), Stream.of(strings)).toList();
+        return System.getProperty("os.name").toLowerCase().startsWith("win")
+                ? Stream.concat(Stream.of("cmd.exe", "/c"), Stream.of(strings)).toList()
+                : List.of("sh", "-c", String.join(" ", strings));
     }
 
     /**
@@ -116,7 +113,9 @@ public class SiffletCLI {
     public Optional<String> getWorkspaceId(String name) throws IOException, InterruptedException {
         logger.info("Executing sifflet workspace list on CLI");
         ProcessBuilder builder = new ProcessBuilder();
-        builder.command(buildCommand("sifflet code workspace list"));
+        builder.command(buildCommand("sifflet code workspace list"))
+                .environment()
+                .put("COLUMNS", "200"); // Avoids output truncation on some consoles;
 
         List<String> outputs = launchProcess(builder);
 

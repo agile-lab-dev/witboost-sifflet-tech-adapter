@@ -13,9 +13,9 @@ import lombok.*;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Incident {
 
-    private Severity severity;
+    private final Severity severity;
 
-    private final Boolean createOnFailure = true;
+    private final Boolean createOnFailure;
 
     @Getter
     @AllArgsConstructor

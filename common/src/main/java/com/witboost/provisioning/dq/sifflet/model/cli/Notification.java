@@ -1,17 +1,12 @@
 package com.witboost.provisioning.dq.sifflet.model.cli;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.ToString;
+import com.fasterxml.jackson.annotation.*;
+import lombok.*;
 
 @Getter
 @EqualsAndHashCode
 @ToString
+@RequiredArgsConstructor
 @NoArgsConstructor(force = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -25,19 +20,20 @@ import lombok.ToString;
 })
 public class Notification {
 
-    private String kind;
-
-    public Notification(String kind) {
-        this.kind = kind;
-    }
+    private final String kind;
 
     @Getter
     @EqualsAndHashCode(callSuper = true)
     @ToString
-    @NoArgsConstructor(force = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonIgnoreProperties(ignoreUnknown = true)
-    static class Email extends Notification {
+    public static class Email extends Notification {
         private final String name;
+
+        @JsonCreator
+        public Email(@JsonProperty("name") String name) {
+            super("Email");
+            this.name = name;
+        }
     }
 }

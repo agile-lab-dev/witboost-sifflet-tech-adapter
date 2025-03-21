@@ -52,6 +52,21 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            - name: SIFFLET_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: witboost-secrets
+                  key: SIFFLET_TOKEN
+            - name: SIFFLET_BASE_PATH
+              valueFrom:
+                secretKeyRef:
+                  name: witboost-secrets
+                  key: SIFFLET_BASE_PATH
+            - name: SIFFLET_SOURCE_IAM_ROLE
+              valueFrom:
+                secretKeyRef:
+                  name: witboost-secrets
+                  key: SIFFLET_SOURCE_IAM_ROLE
             - name: SPRING_CONFIG_LOCATION
               value: file:/opt/docker/etc/configs/application.yml
             - name: OTEL_JAVAAGENT_ENABLED

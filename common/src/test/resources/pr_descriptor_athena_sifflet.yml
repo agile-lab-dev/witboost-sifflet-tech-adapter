@@ -1,0 +1,180 @@
+dataProduct:
+  environment: development
+  dataProductOwnerDisplayName: John Doe
+  projectOwner: user:john.doe_witboost.com
+  projectOwnerDisplayName: John Doe
+  domain: finance
+  projectKind: system
+  kind: dataproduct
+  domainId: urn:dmb:dmn:finance
+  id: urn:dmb:dp:finance:exchange:0
+  description: nonloso
+  devGroup: group:agile_lab
+  ownerGroup: john.doe_witboost.com
+  dataProductOwner: user:john.doe_witboost.com
+  email: john.doe@witboost.com
+  version: 0.1.0-SNAPSHOT-2
+  fullyQualifiedName: null
+  name: exchange
+  informationSLA: null
+  maturity: Tactical
+  useCaseTemplateId: urn:dmb:utm:dataproduct-template:0.0.0
+  infrastructureTemplateId: urn:dmb:itm:dataproduct-provisioner:1
+  billing: {}
+  tags: []
+  specific: {}
+  shoppable: false
+  taxonomy:
+    id: urn:dmb:taxonomy:data-mesh-taxonomy
+    name: data-mesh-taxonomy
+  components:
+    - kind: outputport
+      id: urn:dmb:cmp:finance:exchange:0:output-port
+      description: Output Port that exposes information of this Data Product to users
+        and other data products.
+      name: Output Port
+      fullyQualifiedName: Finance - exchange - version 0 - Output Port
+      version: 0.0.0
+      infrastructureTemplateId: urn:dmb:itm:aws-athena-tech-adapter:0
+      useCaseTemplateId: urn:dmb:utm:aws-athena-template:0.0.0
+      dependsOn:
+        - urn:dmb:cmp:finance:exchange:0:s3-storage-area
+      platform: AWS
+      technology: Athena
+      outputPortType: View
+      creationDate: 2025-03-19T17:15:53.151Z
+      startDate: 2025-03-19T17:15:53.151Z
+      processDescription: null
+      dataContract:
+        schema:
+          - name: id
+            dataType: INT
+            tags: []
+          - name: name
+            dataType: STRING
+            tags: []
+        quality:
+          - type: custom
+            engine: sifflet
+            implementation:
+              name: monitoring id
+              description: null
+              schedule: "@daily"
+              scheduleTimezone: UTC
+              incident:
+                severity: Low
+                createOnFailure: false
+              parameters:
+                kind: FieldDuplicates
+                field: id
+          - type: custom
+            engine: sifflet
+            implementation:
+              name: monitoring name
+              description: null
+              schedule: "@daily"
+              scheduleTimezone: UTC
+              incident:
+                severity: High
+                createOnFailure: false
+              parameters:
+                kind: FieldNulls
+                field: name
+                nullValues: NullEmptyAndWhitespaces
+                threshold:
+                  kind: Static
+                  valueMode: Percentage
+                  max: 10%
+        termsAndConditions: null
+        endpoint: null
+        SLA:
+          intervalOfChange: null
+          timeliness: null
+          upTime: null
+      dataSharingAgreement:
+        purpose: null
+        billing: null
+        security: null
+        intendedUsage: null
+        limitations: null
+        lifeCycle: null
+        confidentiality: null
+      tags: []
+      sampleData: {}
+      semanticLinking: []
+      specific:
+        storageAreaId: urn:dmb:cmp:finance:exchange:0:s3-storage-area
+        sourceTable:
+          catalog: AWSDataCatalog
+          name: sourceTable
+          tableFormat: ICEBERG
+          database: finance_development_exchange_v0_internal
+        view:
+          catalog: AWSDataCatalog
+          name: outputport
+          database: finance_development_exchange_v0_consumable
+      info:
+        publicInfo:
+          view:
+            label: View name
+            value: outputport
+            type: string
+          database:
+            label: Database
+            value: finance_development_exchange_v0_consumable
+            type: string
+          catalog:
+            label: Catalog
+            value: AWSDataCatalog
+            type: string
+        privateInfo:
+          view:
+            label: View name
+            value: outputport
+            type: string
+          database:
+            label: Database
+            value: finance_development_exchange_v0_consumable
+            type: string
+          catalog:
+            label: Catalog
+            value: AWSDataCatalog
+            type: string
+          region:
+            label: "AWS Region"
+            value: eu-west-1
+            type: string
+          s3Location:
+            label: "S3 Bucket"
+            value: "s3://myoutputs3bucket"
+            type: string
+      consumable: true
+      shoppable: true
+    - kind: workload
+      id: urn:dmb:cmp:finance:exchange:0:sifflet-data-quality-workload
+      description: Workload that performs automated data quality checks on Athena
+        output ports.
+      name: Sifflet data quality workload
+      fullyQualifiedName: Finance - exchange - version 0 - Sifflet data quality workload
+      version: 0.0.0
+      infrastructureTemplateId: urn:dmb:itm:sifflet-tech-adapter:0
+      useCaseTemplateId: urn:dmb:utm:sifflet-template:0.0.0
+      dependsOn:
+        - urn:dmb:cmp:finance:exchange:0:output-port
+      platform: AWS
+      technology: Sifflet
+      workloadType: Data Quality
+      connectionType: DataPipeline
+      tags: []
+      readsFrom:
+        - urn:dmb:cmp:finance:exchange:0:output-port
+      specific:
+        athenaOutputPorts:
+          - urn:dmb:cmp:finance:exchange:0:output-port
+        dataSourceRefreshCron: "@daily"
+        notification:
+          kind: Email
+          name: john.doe@witboost.com
+      consumable: false
+      shoppable: false
+componentIdToProvision: urn:dmb:cmp:finance:exchange:0:sifflet-data-quality-workload

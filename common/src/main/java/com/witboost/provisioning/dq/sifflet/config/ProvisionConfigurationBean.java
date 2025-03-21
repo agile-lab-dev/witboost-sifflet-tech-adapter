@@ -1,6 +1,5 @@
 package com.witboost.provisioning.dq.sifflet.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.witboost.provisioning.dq.sifflet.service.provision.WorkloadProvisionService;
 import com.witboost.provisioning.framework.service.ProvisionConfiguration;
 import okhttp3.OkHttpClient;
@@ -20,10 +19,5 @@ public class ProvisionConfigurationBean {
     @Bean
     public OkHttpClient okHttpClient() {
         return new OkHttpClient();
-    }
-
-    @Bean
-    public ObjectMapper objectMapper() {
-        return new ObjectMapper();
     }
 }

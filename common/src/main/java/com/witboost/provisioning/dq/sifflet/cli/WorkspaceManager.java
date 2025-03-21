@@ -170,6 +170,8 @@ public class WorkspaceManager {
                 logger.info("Workspace with name '{}' exists. Removing", name);
                 cli.deleteWorkspace(optionalWorkspace.get().getId());
                 logger.info("Workspace '{}' successfully removed", name);
+            } else {
+                logger.info("Workspace with name '{}' doesn't exist", name);
             }
             return Either.right(optionalWorkspace);
         } catch (IOException | InterruptedException exception) {

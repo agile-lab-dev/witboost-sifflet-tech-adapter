@@ -17,7 +17,7 @@ public class OkHttpUtils {
                 .post(requestBody)
                 .addHeader("Content-Type", "application/json")
                 .addHeader("Accept", "application/json")
-                .addHeader("Authorization", token)
+                .addHeader("Authorization", String.format("Bearer %s", token))
                 .build();
     }
 
@@ -26,8 +26,8 @@ public class OkHttpUtils {
         return new Request.Builder()
                 .url(url)
                 .get()
-                .addHeader("accept", "application/json")
-                .addHeader("authorization", token)
+                .addHeader("Accept", "application/json")
+                .addHeader("Authorization", String.format("Bearer %s", token))
                 .build();
     }
 }

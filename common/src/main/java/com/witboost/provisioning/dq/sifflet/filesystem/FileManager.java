@@ -6,7 +6,9 @@ import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.springframework.stereotype.Service;
 
+@Service
 public class FileManager {
 
     public Path initTempDirectory(String prefix) throws IOException {

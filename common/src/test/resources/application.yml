@@ -19,7 +19,9 @@ springdoc:
   swagger-ui:
     path: /docs
 
-
-token: "fake-token"
-basePath: "https://sandbox.siffletdata.com"
-sourceUpdateTimeoutSeconds: 120
+sifflet:
+  token: "fake-token"
+  basePath: "https://sandbox.siffletdata.com"
+  sourceUpdateTimeoutSeconds: 120
+  athena:
+    iamRole: arn:aws:iam::myRole
