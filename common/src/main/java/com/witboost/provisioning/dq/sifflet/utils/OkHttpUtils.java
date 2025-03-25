@@ -22,11 +22,25 @@ public class OkHttpUtils {
     }
 
     @NotNull
+    public static Request buildPutRequest(String url, String jsonBody, String token) {
+
+        RequestBody requestBody = RequestBody.create(jsonBody, MediaType.get("application/json"));
+
+        return new Request.Builder()
+                .url(url)
+                .put(requestBody)
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Accept", "application/json")
+                .addHeader("Authorization", String.format("Bearer %s", token))
+                .build();
+    }
+
+    @NotNull
     public static Request buildGetRequest(String url, String token) {
         return new Request.Builder()
                 .url(url)
                 .get()
-                .addHeader("Accept", "application/json")
+                .addHeader("accept", "application/json")
                 .addHeader("Authorization", String.format("Bearer %s", token))
                 .build();
     }

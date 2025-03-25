@@ -41,6 +41,8 @@ public class SourceManager {
 
     private static final String API_V1_SOURCES = "/api/v1/sources/";
     private static final String API_UI_V1_DATASOURCES = "/api/ui/v1/datasources";
+    private static final String API_UI_V1_DOMAINS = "/api/ui/v1/domains";
+    private static final String API_V1_ASSETS_SEARCH = "/api/v1/assets/search";
 
     public SourceManager(ObjectMapper objectMapper, OkHttpClient okHttpClient) {
         this.objectMapper = objectMapper;
@@ -59,6 +61,7 @@ public class SourceManager {
     public Either<FailedOperation, String> provisionSource(
             @NotNull AthenaEntity athenaEntity, @NotNull SiffletSpecific siffletSpecific, @NotBlank String roleArn) {
         try {
+
             String sourceName = computeSourceName(athenaEntity.getDatabase());
             Either<FailedOperation, Optional<Source>> sourceFromName = getSourceFromName(sourceName);
 
@@ -368,6 +371,172 @@ public class SourceManager {
                     String.format(
                             "An unexpected error waiting for the completion of the update of the source %s. Check details for more information",
                             sourceID),
+                    List.of(new Problem(error, e))));
+        }
+    }
+
+    public Either<FailedOperation, Void> attachDomainToSourceDatasets(String domainName, String sourceID) {
+
+        logger.info("Attaching domain {} to datasets with source {}", domainName, sourceID);
+
+        return getDomainFromName(domainName).flatMap(domain -> {
+            if (domain.isEmpty()) {
+                String error = String.format(
+                        "Error while attaching domain '%s' to datasets with source '%s'. Details: Domain not found.",
+                        domainName, sourceID);
+
+                return Either.left(new FailedOperation(
+                        String.format(
+                                "Error while attaching domain '%s' to datasets with source '%s'.",
+                                domainName, sourceID),
+                        List.of(new Problem(error))));
+            }
+            return getDatasetsForSource(sourceID)
+                    .flatMap(datasets -> assignDomainToDataSources(domain.get().getId(), domainName, datasets))
+                    .peek(result -> logger.info(
+                            "Successfully attached domain '{}' to datasets with source '{}'", domainName, sourceID));
+        });
+    }
+
+    protected Either<FailedOperation, Optional<Domain>> getDomainFromName(String domainName) {
+        try {
+            String url = String.format("%s%s", basePath, API_UI_V1_DOMAINS);
+            Request request = OkHttpUtils.buildGetRequest(url, token);
+
+            Response response = executeRequest(request);
+
+            if (!response.isSuccessful() || response.body() == null) {
+                String responseBody = response.body() != null ? response.body().string() : "No response body";
+
+                String error = String.format(
+                        "Failed to list Sifflet domains. Response status code: %d. Details: %s. Response: %s",
+                        response.code(), response.message(), responseBody);
+                return Either.left(new FailedOperation(
+                        "Failed to list Sifflet domains. Check details for more information",
+                        List.of(new Problem(error))));
+            }
+
+            String responseBody = response.body().string();
+
+            Either<FailedOperation, GetDomainsResponse> getDomainsResponses =
+                    parseResponseBody(responseBody, GetDomainsResponse.class);
+            if (getDomainsResponses.isLeft()) return Either.left(getDomainsResponses.getLeft());
+
+            Optional<Domain> foundDomain = getDomainsResponses.get().getData().stream()
+                    .filter(domain -> domain.getName().equalsIgnoreCase(domainName))
+                    .findFirst();
+
+            if (foundDomain.isPresent()) {
+                logger.info(
+                        "Domain '{}' found with ID: {}",
+                        domainName,
+                        foundDomain.get().getId());
+            } else {
+                logger.info("Domain '{}' not found.", domainName);
+            }
+
+            return Either.right(foundDomain);
+
+        } catch (Exception e) {
+            String error = String.format(
+                    "An unexpected error occurred while looking for domain named '%s'. Details: %s",
+                    domainName, e.getMessage());
+            logger.error(error, e);
+            return Either.left(new FailedOperation(
+                    String.format(
+                            "An unexpected error occurred while looking for domain named '%s'. Check details for more information",
+                            domainName),
+                    List.of(new Problem(error, e))));
+        }
+    }
+
+    protected Either<FailedOperation, List<Dataset>> getDatasetsForSource(String sourceID) {
+        try {
+            logger.info("Getting datasets for source: {}", sourceID);
+
+            String url = basePath + API_V1_ASSETS_SEARCH;
+            String jsonBody = "{ \"filter\": { \"sourceId\": [ \"" + sourceID + "\" ] } }";
+
+            Request request = OkHttpUtils.buildPostRequest(url, jsonBody, token);
+
+            Response response = executeRequest(request);
+
+            if (!response.isSuccessful() || response.body() == null) {
+                String responseBody = response.body() != null ? response.body().string() : "No response body";
+                String error = String.format(
+                        "Error getting the list of datasets for source with ID '%s'. Response: %s",
+                        sourceID, responseBody);
+                logger.error(error);
+                return Either.left(new FailedOperation(
+                        String.format(
+                                "Error getting the list of datasets for source with ID '%s'. Check details for more information",
+                                sourceID),
+                        List.of(new Problem(error))));
+            }
+
+            String responseBody = response.body().string();
+
+            Either<FailedOperation, GetAssetsResponse> getAssetsResponses =
+                    parseResponseBody(responseBody, GetAssetsResponse.class);
+            if (getAssetsResponses.isLeft()) return Either.left(getAssetsResponses.getLeft());
+
+            return Either.right(getAssetsResponses.get().getData());
+
+        } catch (Exception e) {
+            String error = String.format(
+                    "An unexpected error occurred while getting the list of datasets for source with ID '%s'. Details: %s",
+                    sourceID, e.getMessage());
+            logger.error(error, e);
+            return Either.left(new FailedOperation(
+                    String.format(
+                            "An unexpected error occurred while getting the list of datasets for source with ID '%s'. Check details for more information",
+                            sourceID),
+                    List.of(new Problem(error, e))));
+        }
+    }
+
+    protected Either<FailedOperation, Void> assignDomainToDataSources(
+            String domainID, String domainName, List<Dataset> datasets) {
+        try {
+            logger.info("Assigning datasets to domain with ID {}", domainID);
+
+            String url = String.format("%s%s/%s", basePath, API_UI_V1_DOMAINS, domainID);
+
+            List<String> assetUrns =
+                    (datasets != null) ? datasets.stream().map(Dataset::getUrn).toList() : List.of();
+
+            DomainAssignmentRequest domainAssignmentRequest =
+                    new DomainAssignmentRequest("STATIC", false, assetUrns, "", domainName);
+
+            String jsonBody = objectMapper.writeValueAsString(domainAssignmentRequest);
+
+            Request request = OkHttpUtils.buildPutRequest(url, jsonBody, token);
+
+            Response response = executeRequest(request);
+
+            if (!response.isSuccessful()) {
+                String responseBody = response.body() != null ? response.body().string() : "No response body";
+                String error = String.format(
+                        "Error assigning datasets to domain named '%s'. Response: %s", domainName, responseBody);
+                logger.error(error);
+                return Either.left(new FailedOperation(
+                        String.format(
+                                "Error assigning datasets to domain named '%s'. Check details for more information",
+                                domainName),
+                        List.of(new Problem(error))));
+            }
+
+            return Either.right(null);
+
+        } catch (Exception e) {
+            String error = String.format(
+                    "An unexpected error occurred while assigning datasets to domain named '%s'. Details: %s",
+                    domainName, e.getMessage());
+            logger.error(error, e);
+            return Either.left(new FailedOperation(
+                    String.format(
+                            "An unexpected error occurred while assigning datasets to domain with ID '%s'. Check details for more information",
+                            domainID),
                     List.of(new Problem(error, e))));
         }
     }

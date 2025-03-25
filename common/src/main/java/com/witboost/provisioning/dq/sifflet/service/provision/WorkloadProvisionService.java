@@ -155,7 +155,11 @@ public class WorkloadProvisionService implements ProvisionService {
                     provisionSourceOutput.getLeft());
             return left(provisionSourceOutput.getLeft());
         }
-        logger.info("Provisioned source successfully");
+        logger.info("Source with ID provisioned '{}' successfully", provisionSourceOutput.get());
+
+        var attachDomainToSourceDatasets =
+                sourceManager.attachDomainToSourceDatasets(dataProduct.getDomain(), provisionSourceOutput.get());
+        if (attachDomainToSourceDatasets.isLeft()) return Either.left(attachDomainToSourceDatasets.getLeft());
 
         // Create workspace
         // Define workspace name (<dbName>_<tableName>)

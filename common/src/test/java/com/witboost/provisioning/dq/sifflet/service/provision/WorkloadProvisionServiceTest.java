@@ -23,6 +23,7 @@ import com.witboost.provisioning.model.request.AccessControlOperationRequest;
 import com.witboost.provisioning.model.request.ProvisionOperationRequest;
 import com.witboost.provisioning.model.request.ReverseProvisionOperationRequest;
 import com.witboost.provisioning.parser.Parser;
+import io.vavr.control.Either;
 import java.io.IOException;
 import java.util.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -107,6 +108,10 @@ class WorkloadProvisionServiceTest {
                         "arn:aws:iam::myRole"))
                 .thenReturn(right("sourceId"));
 
+        when(sourceManager.attachDomainToSourceDatasets(
+                        componentDescriptor.getDataProduct().getDomain(), "sourceId"))
+                .thenReturn(Either.right(null));
+
         Workspace workspace =
                 new Workspace("workspaceId", "finance_development_exchange_v0_consumable_outputport", expectedMonitors);
         when(workspaceManager.createOrUpdate(
@@ -177,6 +182,10 @@ class WorkloadProvisionServiceTest {
                         "arn:aws:iam::myRole"))
                 .thenReturn(right("sourceId"));
 
+        when(sourceManager.attachDomainToSourceDatasets(
+                        componentDescriptor.getDataProduct().getDomain(), "sourceId"))
+                .thenReturn(Either.right(null));
+
         when(workspaceManager.createOrUpdate(
                         eq("finance_development_exchange_v0_consumable_outputport"), eq(expectedMonitors)))
                 .thenReturn(left(new FailedOperation("Error!", List.of())));
@@ -212,6 +221,73 @@ class WorkloadProvisionServiceTest {
                                 "@daily", notification, List.of("urn:dmb:cmp:finance:exchange:0:output-port")),
                         "arn:aws:iam::myRole"))
                 .thenReturn(left(new FailedOperation("Error!", List.of())));
+
+        var output = workloadProvisionService.provision(provisionRequest);
+        assertTrue(output.isLeft());
+        assertEquals(output.getLeft().message(), "Error!");
+    }
+
+    @Test
+    void provisionErrorAttachingDomain() throws IOException {
+        String ymlDescriptor = ResourceUtils.getContentFromResource("/pr_descriptor_athena_sifflet.yml");
+        var componentDescriptor =
+                Parser.parseComponentDescriptor(ymlDescriptor, Specific.class).get();
+        var component = componentDescriptor
+                .getDataProduct()
+                .getComponentToProvision(componentDescriptor.getComponentIdToProvision())
+                .get();
+        var workload = Parser.parseComponent(component, Workload.class, SiffletSpecific.class)
+                .get();
+        var provisionRequest = new ProvisionOperationRequest<>(
+                componentDescriptor.getDataProduct(), workload, false, Optional.empty());
+
+        var notification = new Notification.Email("john.doe@witboost.com");
+
+        var expectedMonitors = List.of(
+                Monitor.builder()
+                        .name("monitoring id")
+                        .schedule("@daily")
+                        .scheduleTimezone("UTC")
+                        .incident(new Incident(Incident.Severity.Low, false))
+                        .notifications(List.of(notification))
+                        .datasets(
+                                List.of(
+                                        new Dataset(
+                                                "awsathena://athena.eu-west-1.amazonaws.com/AWSDataCatalog.finance_development_exchange_v0_consumable.outputport")))
+                        .parameters(new Parameters.FieldDuplicates(JsonNodeFactory.instance.textNode("id")))
+                        .build(),
+                Monitor.builder()
+                        .name("monitoring name")
+                        .schedule("@daily")
+                        .scheduleTimezone("UTC")
+                        .incident(new Incident(Incident.Severity.High, false))
+                        .notifications(List.of(notification))
+                        .datasets(
+                                List.of(
+                                        new Dataset(
+                                                "awsathena://athena.eu-west-1.amazonaws.com/AWSDataCatalog.finance_development_exchange_v0_consumable.outputport")))
+                        .parameters(new Parameters.FieldNulls(
+                                "name",
+                                "NullEmptyAndWhitespaces",
+                                new Parameters.Threshold("Static", "Percentage", "10%")))
+                        .build());
+
+        when(sourceManager.provisionSource(
+                        new AthenaEntity(
+                                "AWSDataCatalog",
+                                "finance_development_exchange_v0_consumable",
+                                "outputport",
+                                Region.EU_WEST_1,
+                                "primary",
+                                "s3://myoutputs3bucket"),
+                        new SiffletSpecific(
+                                "@daily", notification, List.of("urn:dmb:cmp:finance:exchange:0:output-port")),
+                        "arn:aws:iam::myRole"))
+                .thenReturn(right("sourceId"));
+
+        when(sourceManager.attachDomainToSourceDatasets(
+                        componentDescriptor.getDataProduct().getDomain(), "sourceId"))
+                .thenReturn(Either.left(new FailedOperation("Error!", List.of())));
 
         var output = workloadProvisionService.provision(provisionRequest);
         assertTrue(output.isLeft());

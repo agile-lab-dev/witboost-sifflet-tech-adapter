@@ -8,11 +8,13 @@ import com.witboost.provisioning.dq.sifflet.utils.ErrorUtils;
 import com.witboost.provisioning.framework.service.validation.ComponentValidationService;
 import com.witboost.provisioning.model.Component;
 import com.witboost.provisioning.model.OperationType;
+import com.witboost.provisioning.model.OutputPort;
 import com.witboost.provisioning.model.Specific;
 import com.witboost.provisioning.model.Workload;
 import com.witboost.provisioning.model.common.FailedOperation;
 import com.witboost.provisioning.model.common.Problem;
 import com.witboost.provisioning.model.request.OperationRequest;
+import com.witboost.provisioning.parser.Parser;
 import io.vavr.control.Either;
 import jakarta.validation.Valid;
 import java.util.Collections;
@@ -69,15 +71,10 @@ public class WorkloadValidationService implements ComponentValidationService {
                                                 dependencyId)))));
 
                             var dependencyComponent = maybeDependentComponent.get();
+                            var eitherOutputPort =
+                                    Parser.parseComponent(dependencyComponent, OutputPort.class, Specific.class);
+                            if (eitherOutputPort.isLeft()) return left(eitherOutputPort.getLeft());
 
-                            var dependencyOutputs =
-                                    SiffletValidator.extractAndValidateSiffletOutputPortDependency(dependencyComponent);
-                            if (dependencyOutputs.isLeft()) {
-                                logger.error(
-                                        "Error while extracting information from Output Port marked as dependency: {}",
-                                        dependencyOutputs.getLeft());
-                                return left(dependencyOutputs.getLeft());
-                            }
                             return right(true);
                         })
                         .toList();

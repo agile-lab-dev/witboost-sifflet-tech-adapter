@@ -543,4 +543,311 @@ class SourceManagerTest {
                     .anyMatch(problem -> problem.getMessage().contains("Simulated error"));
         }
     }
+
+    @Test
+    void attachDomainToSourceDatasets_shouldSucceed_whenDomainAndDatasetsExist() {
+        String domainName = "TestDomain";
+        String sourceID = "source-123";
+        Domain domain = new Domain();
+        domain.setId("domain-123");
+        domain.setName(domainName);
+
+        Dataset dataset1 = new Dataset();
+        dataset1.setUrn("urn:dataset:1");
+        Dataset dataset2 = new Dataset();
+        dataset2.setUrn("urn:dataset:2");
+
+        doReturn(Either.right(Optional.of(domain))).when(sourceManagerSpy).getDomainFromName(domainName);
+        doReturn(Either.right(List.of(dataset1, dataset2)))
+                .when(sourceManagerSpy)
+                .getDatasetsForSource(sourceID);
+        doReturn(Either.right(null))
+                .when(sourceManagerSpy)
+                .assignDomainToDataSources(anyString(), anyString(), anyList());
+
+        Either<FailedOperation, Void> result = sourceManagerSpy.attachDomainToSourceDatasets(domainName, sourceID);
+
+        assertThat(result.isRight()).isTrue();
+    }
+
+    @Test
+    void attachDomainToSourceDatasets_domainNotFound() {
+        String domainName = "NonExistentDomain";
+        String sourceID = "source-123";
+
+        doReturn(Either.right(Optional.empty())).when(sourceManagerSpy).getDomainFromName(domainName);
+
+        Either<FailedOperation, Void> result = sourceManagerSpy.attachDomainToSourceDatasets(domainName, sourceID);
+
+        assertThat(result.isLeft()).isTrue();
+        assertThat(result.getLeft().problems().get(0).getMessage()).contains("Domain not found");
+    }
+
+    @Test
+    void attachDomainToSourceDatasets_shouldFail_whenFetchingDatasetsFails() {
+        String domainName = "TestDomain";
+        String sourceID = "source-123";
+        Domain domain = new Domain();
+        domain.setId("domain-123");
+
+        doReturn(Either.right(Optional.of(domain))).when(sourceManagerSpy).getDomainFromName(domainName);
+        doReturn(Either.left(new FailedOperation("Error fetching datasets", Collections.emptyList())))
+                .when(sourceManagerSpy)
+                .getDatasetsForSource(sourceID);
+
+        Either<FailedOperation, Void> result = sourceManagerSpy.attachDomainToSourceDatasets(domainName, sourceID);
+
+        assertThat(result.isLeft()).isTrue();
+        assertThat(result.getLeft().message()).contains("Error fetching datasets");
+    }
+
+    @Test
+    void attachDomainToSourceDatasets_shouldFail_whenAssigningDomainFails() {
+        String domainName = "TestDomain";
+        String sourceID = "source-123";
+        Domain domain = new Domain();
+        domain.setId("domain-123");
+
+        Dataset dataset = new Dataset();
+        dataset.setUrn("urn:dataset:1");
+
+        doReturn(Either.right(Optional.of(domain))).when(sourceManagerSpy).getDomainFromName(domainName);
+        doReturn(Either.right(List.of(dataset))).when(sourceManagerSpy).getDatasetsForSource(sourceID);
+        doReturn(Either.left(new FailedOperation("Failed to assign domain", Collections.emptyList())))
+                .when(sourceManagerSpy)
+                .assignDomainToDataSources(anyString(), anyString(), anyList());
+
+        Either<FailedOperation, Void> result = sourceManagerSpy.attachDomainToSourceDatasets(domainName, sourceID);
+
+        assertThat(result.isLeft()).isTrue();
+        assertThat(result.getLeft().message()).contains("Failed to assign domain");
+    }
+
+    @Test
+    void getDomainFromName_shouldReturnDomain_whenExists() throws Exception {
+        String domainName = "TestDomain";
+        Domain domain = new Domain();
+        domain.setId("domain-123");
+        domain.setName(domainName);
+
+        GetDomainsResponse response = new GetDomainsResponse();
+        response.setData(List.of(domain));
+
+        Response mockResponse = new Response.Builder()
+                .request(new Request.Builder().url("http://localhost").build())
+                .protocol(Protocol.HTTP_1_1)
+                .code(200)
+                .message("OK")
+                .body(ResponseBody.create("{}", MediaType.get("application/json")))
+                .build();
+
+        createMockCall(mockResponse);
+        when(objectMapper.readValue(anyString(), eq(GetDomainsResponse.class))).thenReturn(response);
+
+        Either<FailedOperation, Optional<Domain>> result = sourceManagerSpy.getDomainFromName(domainName);
+
+        assertThat(result.isRight()).isTrue();
+        assertThat(result.get()).contains(domain);
+    }
+
+    @Test
+    void getDomainFromName_shouldReturnEmpty_whenDomainNotFound() throws Exception {
+        String domainName = "NonExistentDomain";
+        GetDomainsResponse response = new GetDomainsResponse();
+        response.setData(Collections.emptyList());
+
+        Response mockResponse = new Response.Builder()
+                .request(new Request.Builder().url("http://localhost").build())
+                .protocol(Protocol.HTTP_1_1)
+                .code(200)
+                .message("OK")
+                .body(ResponseBody.create("{}", MediaType.get("application/json")))
+                .build();
+
+        createMockCall(mockResponse);
+        when(objectMapper.readValue(anyString(), eq(GetDomainsResponse.class))).thenReturn(response);
+
+        Either<FailedOperation, Optional<Domain>> result = sourceManagerSpy.getDomainFromName(domainName);
+
+        assertThat(result.isRight()).isTrue();
+        assertThat(result.get()).isEmpty();
+    }
+
+    @Test
+    void getDomainFromName_shouldReturnError_whenApiFails() throws Exception {
+        Response mockErrorResponse = new Response.Builder()
+                .request(new Request.Builder().url("http://localhost").build())
+                .protocol(Protocol.HTTP_1_1)
+                .code(500)
+                .message("Internal Server Error")
+                .body(ResponseBody.create("{\"error\":\"Internal Server Error\"}", MediaType.get("application/json")))
+                .build();
+
+        createMockCall(mockErrorResponse);
+
+        Either<FailedOperation, Optional<Domain>> result = sourceManagerSpy.getDomainFromName("TestDomain");
+
+        assertThat(result.isLeft()).isTrue();
+        assertThat(result.getLeft().message()).contains("Failed to list Sifflet domains");
+    }
+
+    @Test
+    void getDatasetsForSource_shouldReturnDatasets_whenExists() throws Exception {
+        String sourceID = "source-123";
+        Dataset dataset1 = new Dataset();
+        dataset1.setUrn("urn:dataset:1");
+        Dataset dataset2 = new Dataset();
+        dataset2.setUrn("urn:dataset:2");
+
+        GetAssetsResponse response = new GetAssetsResponse();
+        response.setData(List.of(dataset1, dataset2));
+
+        Response mockResponse = new Response.Builder()
+                .request(new Request.Builder().url("http://localhost").build())
+                .protocol(Protocol.HTTP_1_1)
+                .code(200)
+                .message("OK")
+                .body(ResponseBody.create("{}", MediaType.get("application/json")))
+                .build();
+
+        createMockCall(mockResponse);
+        when(objectMapper.readValue(anyString(), eq(GetAssetsResponse.class))).thenReturn(response);
+
+        Either<FailedOperation, List<Dataset>> result = sourceManagerSpy.getDatasetsForSource(sourceID);
+
+        assertThat(result.isRight()).isTrue();
+        assertThat(result.get()).containsExactly(dataset1, dataset2);
+    }
+
+    @Test
+    void getDatasetsForSource_shouldReturnEmpty_whenNoDatasetsFound() throws Exception {
+        String sourceID = "source-123";
+        GetAssetsResponse response = new GetAssetsResponse();
+        response.setData(Collections.emptyList());
+
+        Response mockResponse = new Response.Builder()
+                .request(new Request.Builder().url("http://localhost").build())
+                .protocol(Protocol.HTTP_1_1)
+                .code(200)
+                .message("OK")
+                .body(ResponseBody.create("{}", MediaType.get("application/json")))
+                .build();
+
+        createMockCall(mockResponse);
+        when(objectMapper.readValue(anyString(), eq(GetAssetsResponse.class))).thenReturn(response);
+
+        Either<FailedOperation, List<Dataset>> result = sourceManagerSpy.getDatasetsForSource(sourceID);
+
+        assertThat(result.isRight()).isTrue();
+        assertThat(result.get()).isEmpty();
+    }
+
+    @Test
+    void getDatasetsForSource_shouldReturnError_whenApiFails() throws Exception {
+        String sourceID = "source-123";
+
+        Response mockErrorResponse = new Response.Builder()
+                .request(new Request.Builder().url("http://localhost").build())
+                .protocol(Protocol.HTTP_1_1)
+                .code(500)
+                .message("Internal Server Error")
+                .body(ResponseBody.create("{\"error\":\"Internal Server Error\"}", MediaType.get("application/json")))
+                .build();
+
+        createMockCall(mockErrorResponse);
+
+        Either<FailedOperation, List<Dataset>> result = sourceManagerSpy.getDatasetsForSource(sourceID);
+
+        assertThat(result.isLeft()).isTrue();
+        assertThat(result.getLeft().message()).contains("Error getting the list of datasets");
+    }
+
+    @Test
+    void assignDomainToDataSources_shouldSucceed_whenApiCallIsSuccessful() throws Exception {
+        String domainID = "domain-123";
+        String domainName = "TestDomain";
+
+        Dataset dataset1 = new Dataset();
+        dataset1.setUrn("urn:dataset:1");
+        Dataset dataset2 = new Dataset();
+        dataset2.setUrn("urn:dataset:2");
+        List<Dataset> datasets = (List.of(dataset1, dataset2));
+
+        try (MockedStatic<OkHttpUtils> mockedStatic = mockStatic(OkHttpUtils.class)) {
+            mockedStatic
+                    .when(() -> OkHttpUtils.buildPutRequest(any(), any(), any()))
+                    .thenReturn(mock(Request.class));
+
+            Response mockResponse = new Response.Builder()
+                    .request(new Request.Builder().url("http://localhost").build())
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .body(ResponseBody.create("{}", MediaType.get("application/json")))
+                    .build();
+
+            createMockCall(mockResponse);
+
+            Either<FailedOperation, Void> result =
+                    sourceManagerSpy.assignDomainToDataSources(domainID, domainName, datasets);
+
+            assertThat(result.isRight()).isTrue();
+        }
+    }
+
+    @Test
+    void assignDomainToDataSources_shouldReturnError_whenApiFails() throws Exception {
+        String domainID = "domain-123";
+        String domainName = "TestDomain";
+        Dataset dataset1 = new Dataset();
+        dataset1.setUrn("urn:dataset:1");
+        List<Dataset> datasets = (List.of(dataset1));
+
+        try (MockedStatic<OkHttpUtils> mockedStatic = mockStatic(OkHttpUtils.class)) {
+            mockedStatic
+                    .when(() -> OkHttpUtils.buildPutRequest(any(), any(), any()))
+                    .thenReturn(mock(Request.class));
+
+            Response mockErrorResponse = new Response.Builder()
+                    .request(new Request.Builder().url("http://localhost").build())
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(400)
+                    .message("Bad Request")
+                    .body(ResponseBody.create("{\"error\":\"Bad Request\"}", MediaType.get("application/json")))
+                    .build();
+
+            createMockCall(mockErrorResponse);
+
+            Either<FailedOperation, Void> result =
+                    sourceManagerSpy.assignDomainToDataSources(domainID, domainName, datasets);
+
+            assertThat(result.isLeft()).isTrue();
+            assertThat(result.getLeft().message()).contains("Error assigning datasets to domain");
+        }
+    }
+
+    @Test
+    void assignDomainToDataSources_shouldReturnError_whenUnexpectedExceptionOccurs() throws Exception {
+        String domainID = "domain-123";
+        String domainName = "TestDomain";
+        Dataset dataset1 = new Dataset();
+        dataset1.setUrn("urn:dataset:1");
+        List<Dataset> datasets = (List.of(dataset1));
+
+        try (MockedStatic<OkHttpUtils> mockedStatic = mockStatic(OkHttpUtils.class)) {
+            mockedStatic
+                    .when(() -> OkHttpUtils.buildPutRequest(any(), any(), any()))
+                    .thenReturn(mock(Request.class));
+
+            doThrow(new RuntimeException("Unexpected error"))
+                    .when(sourceManagerSpy)
+                    .executeRequest(any(Request.class));
+
+            Either<FailedOperation, Void> result =
+                    sourceManagerSpy.assignDomainToDataSources(domainID, domainName, datasets);
+
+            assertThat(result.isLeft()).isTrue();
+            assertThat(result.getLeft().problems().get(0).getMessage()).contains("Unexpected error");
+        }
+    }
 }
