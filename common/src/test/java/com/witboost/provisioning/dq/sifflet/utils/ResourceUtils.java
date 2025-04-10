@@ -1,4 +1,4 @@
-package com.witboost.provisioning.dq.sifflet.util;
+package com.witboost.provisioning.dq.sifflet.utils;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

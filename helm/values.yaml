@@ -30,7 +30,11 @@ otel:
 # extraEnvVars:
 #   - name: FOO
 #     value: "10"
-extraEnvVars: []
+#extraEnvVars: 
+#  - name: SOURCE_UPDATE_TIMEOUT_SECONDS
+#    value: "120"
+#  - name: SIFFLET_TENANT
+#    value: euronext-sandbox
 
 # -- readiness probe spec
 readinessProbe: {}

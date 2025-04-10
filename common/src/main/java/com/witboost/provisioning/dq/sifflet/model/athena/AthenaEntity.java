@@ -1,4 +1,4 @@
-package com.witboost.provisioning.dq.sifflet.model;
+package com.witboost.provisioning.dq.sifflet.model.athena;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;

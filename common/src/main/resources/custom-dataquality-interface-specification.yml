@@ -1,0 +1,249 @@
+openapi: 3.0.3
+info:
+  title: Specific Provisioner Micro Service
+  description: 'Microservice responsible to handle provisioning and access control requests for one or more data product components.'
+  version: '2.2.0'
+tags:
+  - name: SpecificProvisioner
+    description: All the provisioning related operations
+paths:
+  /v1/dataquality:
+    post:
+      tags:
+        - SpecificProvisioner
+      summary: Retrieve the data quality result for the requested output port
+      operationId: getDataQualityResult
+      requestBody:
+        description: Input data including output port details
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OutputPortRequest'
+        required: true
+      responses:
+        200:
+          description: Data quality result for the monitor
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DataQualityResult'
+        404:
+          description: Monitor not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemError'
+
+components:
+  schemas:
+    OutputPortRequest:
+      type: object
+      required:
+        - outputport
+      properties:
+        outputport:
+          type: object
+          required:
+            - kind
+            - id
+            - description
+            - name
+            - specific
+          properties:
+            kind:
+              type: string
+              description: "Type of the component"
+            id:
+              type: string
+              description: "Unique identifier of the output port"
+            description:
+              type: string
+              description: "Description of the output port"
+            name:
+              type: string
+              description: "Name of the output port"
+            specific:
+              type: object
+              required:
+                - storageAreaId
+                - sourceTable
+                - view
+              properties:
+                storageAreaId:
+                  type: string
+                  description: "Storage Area ID"
+                sourceTable:
+                  type: object
+                  required:
+                    - catalog
+                    - name
+                    - tableFormat
+                    - database
+                  properties:
+                    catalog:
+                      type: string
+                      description: "Catalog for the source table"
+                    name:
+                      type: string
+                      description: "Name of the source table"
+                    tableFormat:
+                      type: string
+                      description: "Format of the table"
+                    database:
+                      type: string
+                      description: "Database for the source table"
+                view:
+                  type: object
+                  required:
+                    - catalog
+                    - name
+                    - database
+                  properties:
+                    catalog:
+                      type: string
+                      description: "Catalog for the view"
+                    name:
+                      type: string
+                      description: "Name of the view"
+                    database:
+                      type: string
+                      description: "Database for the view"
+
+    DataQualityResult:
+      type: object
+      required:
+        - id
+        - name
+        - ruleLabel
+        - criticality
+        - lastRunId
+        - lastRunTimestamp
+        - lastRunStatus
+        - lastRunResult
+        - lastRunsMonitorRuns
+        - lastRunsMonitorSuccess
+        - lastRunsMonitorFailed
+        - lastRunsMonitorAttentionRequired
+        - lastRunsMonitorAttentionTechicalError
+        - lastRunsStatuses
+      properties:
+        id:
+          type: string
+          description: Monitor ID
+        name:
+          type: string
+          description: Monitor Name
+        ruleLabel:
+          type: string
+          description: Label of the rule being monitored
+        criticality:
+          type: string
+          description: Criticality level of the monitor
+        lastRunId:
+          type: string
+          description: ID of the last run
+        lastRunTimestamp:
+          type: integer
+          format: int64
+          description: Timestamp of the last run
+        lastRunStatus:
+          type: string
+          description: Status of the last run (e.g., SUCCESS, FAILURE)
+        lastRunResult:
+          type: string
+          description: Result of the last run
+        lastRunsMonitorRuns:
+          type: integer
+          description: Number of runs returned
+        lastRunsMonitorSuccess:
+          type: number
+          format: double
+          description: Success rate of the monitor (percentage)
+        lastRunsMonitorFailed:
+          type: number
+          format: double
+          description: Failure rate of the monitor (percentage)
+        lastRunsMonitorAttentionRequired:
+          type: number
+          format: double
+          description: Percentage of runs requiring attention
+        lastRunsMonitorAttentionTechicalError:
+          type: number
+          format: double
+          description: Percentage of runs that failed due to technical errors
+        lastRunsStatuses:
+          type: array
+          items:
+            $ref: '#/components/schemas/RunStatus'
+          description: List of statuses for each of the last runs
+
+    RunStatus:
+      type: object
+      required:
+        - timestamp
+        - status
+        - result
+      properties:
+        timestamp:
+          type: integer
+          format: int64
+          description: Timestamp of the run status
+        status:
+          type: string
+          description: Status of the run (e.g., SUCCESS, FAILURE)
+        result:
+          type: string
+          description: Result of the run (e.g., Passed, Failed)
+
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Error message description
+
+    SystemError:
+      required:
+        - error
+      type: object
+      properties:
+        error:
+          type: string
+          deprecated: true
+        userMessage:
+          type: string
+          description: User-readable message to be displayed
+        input:
+          type: string
+          description: Optional field to include the file or descriptor that raised the error
+        inputErrorField:
+          type: string
+          description: Optional field to include the field path (in dot format) that raised the error
+        moreInfo:
+          $ref: "#/components/schemas/ErrorMoreInfo"
+
+    ErrorMoreInfo:
+      required:
+        - problems
+        - solutions
+      type: object
+      description: Object that will include the more in-depth, specific information about the error
+      properties:
+        problems:
+          type: array
+          description: "Array of possible multiple problems: i.e. multiple validations failed"
+          items:
+            type: string
+        solutions:
+          type: array
+          description: Array of possible solutions that the developer gives to the user to solve the issue
+          items:
+            type: string

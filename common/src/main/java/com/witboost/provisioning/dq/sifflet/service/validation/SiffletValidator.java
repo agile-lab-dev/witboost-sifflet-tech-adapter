@@ -4,10 +4,10 @@ import static io.vavr.control.Either.left;
 import static io.vavr.control.Either.right;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.witboost.provisioning.dq.sifflet.model.AthenaEntity;
-import com.witboost.provisioning.dq.sifflet.model.AthenaInfo;
 import com.witboost.provisioning.dq.sifflet.model.SiffletDataContract;
 import com.witboost.provisioning.dq.sifflet.model.SiffletSpecific;
+import com.witboost.provisioning.dq.sifflet.model.athena.AthenaEntity;
+import com.witboost.provisioning.dq.sifflet.model.athena.AthenaInfo;
 import com.witboost.provisioning.dq.sifflet.utils.ErrorUtils;
 import com.witboost.provisioning.model.OutputPort;
 import com.witboost.provisioning.model.Specific;

@@ -3,12 +3,13 @@ package com.witboost.provisioning.dq.sifflet.client;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.witboost.provisioning.dq.sifflet.model.AthenaEntity;
 import com.witboost.provisioning.dq.sifflet.model.SiffletSpecific;
+import com.witboost.provisioning.dq.sifflet.model.athena.AthenaEntity;
 import com.witboost.provisioning.dq.sifflet.model.cli.Notification;
 import com.witboost.provisioning.dq.sifflet.model.client.*;
-import com.witboost.provisioning.dq.sifflet.utils.OkHttpUtils;
+import com.witboost.provisioning.dq.sifflet.utils.RestClientHelper;
 import com.witboost.provisioning.model.common.FailedOperation;
 import io.vavr.control.Either;
 import java.io.IOException;
@@ -20,8 +21,6 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 import software.amazon.awssdk.regions.Region;
@@ -32,11 +31,11 @@ class SourceManagerTest {
     @Mock
     private ObjectMapper objectMapper;
 
-    @Mock
-    private OkHttpClient okHttpClient;
-
     @InjectMocks
     private SourceManager sourceManager;
+
+    @Mock
+    RestClientHelper restClientHelper;
 
     private SourceManager sourceManagerSpy;
 
@@ -52,58 +51,35 @@ class SourceManagerTest {
         ReflectionTestUtils.setField(sourceManager, "token", "test-token");
     }
 
-    private void createMockCall(Response mockResponseObj) throws IOException {
-        Call mockCall = mock(Call.class);
-        when(okHttpClient.newCall(any(Request.class))).thenReturn(mockCall);
-        when(mockCall.execute()).thenReturn(mockResponseObj);
-    }
-
     @Test
-    void getSourceFromName_shouldReturnSource_whenExists() throws Exception {
+    void getSourceFromName_shouldReturnSource_whenExists() {
         GetSourcesResponse getSourcesResponse = new GetSourcesResponse();
         Source existingSource = new Source();
         existingSource.setId("1234");
         existingSource.setName("existing-source");
         getSourcesResponse.setData(Collections.singletonList(existingSource));
 
-        Response mockResponseObj = new Response.Builder()
-                .request(new Request.Builder().url("http://localhost").build())
-                .protocol(Protocol.HTTP_1_1)
-                .code(200)
-                .message("OK")
-                .body(ResponseBody.create("{}", MediaType.get("application/json")))
-                .build();
+        when(restClientHelper.performPostRequest(
+                        anyString(), anyString(), anyString(), eq(GetSourcesResponse.class), anyBoolean()))
+                .thenReturn(getSourcesResponse);
 
-        createMockCall(mockResponseObj);
-
-        when(objectMapper.readValue(anyString(), eq(GetSourcesResponse.class))).thenReturn(getSourcesResponse);
-
-        Either<FailedOperation, Optional<Source>> result = sourceManagerSpy.getSourceFromName("existing-source");
+        Either<FailedOperation, Optional<Source>> result = sourceManager.getSourceFromName("existing-source");
 
         assertThat(result.isRight()).isTrue();
         assertThat(result.get()).contains(existingSource);
     }
 
     @Test
-    void getSourceFromName_shouldReturnEmpty_whenNotExists() throws Exception {
+    void getSourceFromName_shouldReturnEmpty_whenNotExists() {
         String sourceName = "non-existent-source";
-
-        Response mockResponseObj = new Response.Builder()
-                .request(new Request.Builder().url("http://localhost").build())
-                .protocol(Protocol.HTTP_1_1)
-                .code(200)
-                .message("OK")
-                .body(ResponseBody.create("{}", MediaType.get("application/json")))
-                .build();
-
-        createMockCall(mockResponseObj);
-
         GetSourcesResponse mockResponse = new GetSourcesResponse();
         mockResponse.setData(Collections.emptyList());
 
-        when(objectMapper.readValue(anyString(), eq(GetSourcesResponse.class))).thenReturn(mockResponse);
+        when(restClientHelper.performPostRequest(
+                        anyString(), anyString(), anyString(), eq(GetSourcesResponse.class), anyBoolean()))
+                .thenReturn(mockResponse);
 
-        Either<FailedOperation, Optional<Source>> result = sourceManagerSpy.getSourceFromName(sourceName);
+        Either<FailedOperation, Optional<Source>> result = sourceManager.getSourceFromName(sourceName);
 
         assert (result.isRight());
         assertThat(result.get().isEmpty()).isTrue();
@@ -155,68 +131,47 @@ class SourceManagerTest {
     }
 
     @Test
-    void triggerSourceRefresh_shouldSucceed_whenValidSourceId() throws Exception {
+    void triggerSourceRefresh_shouldSucceed_whenValidSourceId() {
         String sourceId = "12345";
 
-        Response mockResponseObj = new Response.Builder()
-                .request(new Request.Builder().url("http://localhost").build())
-                .protocol(Protocol.HTTP_1_1)
-                .code(200)
-                .message("OK")
-                .body(ResponseBody.create("{}", MediaType.get("application/json")))
-                .build();
+        when(restClientHelper.performPostRequest(anyString(), anyString(), anyString(), eq(Void.class), anyBoolean()))
+                .thenReturn(null);
 
-        createMockCall(mockResponseObj);
-
-        Either<FailedOperation, Void> result = sourceManagerSpy.triggerSourceRefresh(sourceId);
+        Either<FailedOperation, Void> result = sourceManager.triggerSourceRefresh(sourceId);
 
         assert (result.isRight());
+        assert (result.get() == null);
     }
 
     @Test
-    void triggerSourceRefresh_shouldFail_whenApiReturnsError() throws Exception {
+    void triggerSourceRefresh_shouldFail_whenApiReturnsError() {
         String sourceId = "12345";
 
-        Response mockResponseObj = new Response.Builder()
-                .request(new Request.Builder().url("http://localhost").build())
-                .protocol(Protocol.HTTP_1_1)
-                .code(500)
-                .message("Error message")
-                .body(ResponseBody.create("{}", MediaType.get("application/json")))
-                .build();
-
-        createMockCall(mockResponseObj);
+        String errorMessage = "errorMessage";
+        when(restClientHelper.performPostRequest(anyString(), anyString(), anyString(), eq(Void.class), anyBoolean()))
+                .thenThrow(new RuntimeException(errorMessage));
 
         Either<FailedOperation, Void> result = sourceManagerSpy.triggerSourceRefresh(sourceId);
 
         assertThat(result.isLeft()).isTrue();
         assertThatCollection(result.getLeft().problems())
-                .anyMatch(problem -> problem.getMessage().contains(mockResponseObj.message()));
+                .anyMatch(problem -> problem.getMessage().contains(errorMessage));
     }
 
     @Test
-    void waitForSourceToBeUpdated_shouldReturnTimeoutError_whenTimeoutExceeded() throws Exception {
+    void waitForSourceToBeUpdated_shouldReturnTimeoutError_whenTimeoutExceeded() {
         String sourceId = "source-id";
         String sourceName = "source-name";
         Source source = new Source();
         source.setId(sourceId);
         source.setLastrun(new LastRun("RUNNING", "0123"));
 
-        Response mockResponseObj = new Response.Builder()
-                .request(new Request.Builder().url("http://localhost").build())
-                .protocol(Protocol.HTTP_1_1)
-                .code(200)
-                .message("OK")
-                .body(ResponseBody.create("{}", MediaType.get("application/json")))
-                .build();
+        when(restClientHelper.performGetRequest(anyString(), anyString(), eq(Source.class), anyBoolean()))
+                .thenReturn(source);
 
-        createMockCall(mockResponseObj);
+        ReflectionTestUtils.setField(sourceManager, "sourceUpdateTimeoutSeconds", 1);
 
-        when(sourceManagerSpy.getSourceFromID(sourceId)).thenReturn(Either.right(source));
-
-        ReflectionTestUtils.setField(sourceManagerSpy, "sourceUpdateTimeoutSeconds", 1);
-
-        Either<FailedOperation, Void> result = sourceManagerSpy.waitForSourceToBeUpdated(sourceId, sourceName);
+        Either<FailedOperation, Void> result = sourceManager.waitForSourceToBeUpdated(sourceId, sourceName);
 
         assertThat(result.isLeft()).isTrue();
         assertThat(result.getLeft().message()).contains("timeout");
@@ -224,78 +179,58 @@ class SourceManagerTest {
 
     @Test
     void validateTimeout_shouldThrowException_whenTimeoutIsZero() {
-        ReflectionTestUtils.setField(sourceManagerSpy, "sourceUpdateTimeoutSeconds", 0);
+        ReflectionTestUtils.setField(sourceManager, "sourceUpdateTimeoutSeconds", 0);
 
-        assertThatThrownBy(() -> sourceManagerSpy.validateTimeout())
+        assertThatThrownBy(() -> sourceManager.validateTimeout())
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("greater than zero");
     }
 
     @Test
-    void getSourceFromName_shouldReturnError_whenApiFails() throws Exception {
-        Response mockErrorResponse = new Response.Builder()
-                .request(new Request.Builder().url("http://localhost").build())
-                .protocol(Protocol.HTTP_1_1)
-                .code(500)
-                .message("Internal Server Error")
-                .body(ResponseBody.create("{\"error\":\"Internal Server Error\"}", MediaType.get("application/json")))
-                .build();
+    void getSourceFromName_shouldReturnError_whenApiFails() {
+        String errorMessage = "Bad request";
 
-        createMockCall(mockErrorResponse);
+        when(restClientHelper.performPostRequest(
+                        anyString(), anyString(), anyString(), eq(GetSourcesResponse.class), anyBoolean()))
+                .thenThrow(new RuntimeException(errorMessage));
 
-        Either<FailedOperation, Optional<Source>> result = sourceManagerSpy.getSourceFromName("source-name");
+        Either<FailedOperation, Optional<Source>> result = sourceManager.getSourceFromName("source-name");
 
         assertThat(result.isLeft()).isTrue();
         assertThatCollection(result.getLeft().problems())
-                .anyMatch(problem -> problem.getMessage().contains("Internal Server Error"));
+                .anyMatch(problem -> problem.getMessage().contains(errorMessage));
     }
 
     @Test
-    void createSource_shouldReturnError_whenApiFails() throws Exception {
-        Response mockErrorResponse = new Response.Builder()
-                .request(new Request.Builder().url("http://localhost").build())
-                .protocol(Protocol.HTTP_1_1)
-                .code(400)
-                .message("Bad Request")
-                .body(ResponseBody.create("{\"error\":\"Bad Request\"}", MediaType.get("application/json")))
-                .build();
+    void createSource_shouldReturnError_whenApiFails() throws JsonProcessingException {
+        String errorMessage = "Bad request";
 
-        try (MockedStatic<OkHttpUtils> mockedStatic = mockStatic(OkHttpUtils.class)) {
-            mockedStatic
-                    .when(() -> OkHttpUtils.buildPostRequest(any(), any(), any()))
-                    .thenReturn(mock(Request.class));
+        when(objectMapper.writeValueAsString(any(CreateSourceRequest.class))).thenReturn("jsonBody");
 
-            createMockCall(mockErrorResponse);
+        when(restClientHelper.performPostRequest(
+                        anyString(), anyString(), anyString(), eq(CreateSourceResponse.class), anyBoolean()))
+                .thenThrow(new RuntimeException(errorMessage));
 
-            Either<FailedOperation, CreateSourceResponse> result = sourceManagerSpy.createSource(
-                    new AthenaEntity("AwsDataCatalog", "database", "table", Region.EU_WEST_1, "primary", "s3://test"),
-                    new SiffletSpecific("cron", new Notification.Email("john.doe@witboost.com"), List.of()),
-                    "roleArn",
-                    "some-token");
-
-            assertThat(result.isLeft()).isTrue();
-            assertThatCollection(result.getLeft().problems())
-                    .anyMatch(problem -> problem.getMessage().contains("Bad Request"));
-        }
-    }
-
-    @Test
-    void triggerSourceRefresh_shouldReturnError_whenUnexpectedResponse() throws Exception {
-        Response mockUnexpectedResponse = new Response.Builder()
-                .request(new Request.Builder().url("http://localhost").build())
-                .protocol(Protocol.HTTP_1_1)
-                .code(123)
-                .message("OK")
-                .body(ResponseBody.create("{\"unexpected\":\"value\"}", MediaType.get("application/json")))
-                .build();
-
-        createMockCall(mockUnexpectedResponse);
-
-        Either<FailedOperation, Void> result = sourceManagerSpy.triggerSourceRefresh("1234");
+        Either<FailedOperation, CreateSourceResponse> result = sourceManager.createSource(
+                new AthenaEntity("AwsDataCatalog", "database", "table", Region.EU_WEST_1, "primary", "s3://test"),
+                new SiffletSpecific("cron", new Notification.Email("john.doe@witboost.com"), List.of()),
+                "roleArn",
+                "some-token");
 
         assertThat(result.isLeft()).isTrue();
-        assertThatCollection(result.getLeft().problems()).anyMatch(problem -> problem.getMessage()
-                .contains("Failed to trigger source metadata ingestion job for source 1234"));
+        assert (result.getLeft().problems().get(0).getMessage().contains(errorMessage));
+    }
+
+    @Test
+    void triggerSourceRefresh_shouldReturnError_whenUnexpectedResponse() {
+        when(restClientHelper.performPostRequest(anyString(), anyString(), anyString(), eq(Void.class), anyBoolean()))
+                .thenThrow(new RuntimeException("Unexpected"));
+
+        Either<FailedOperation, Void> result = sourceManager.triggerSourceRefresh("1234");
+
+        assertThat(result.isLeft()).isTrue();
+        assertThat(result.getLeft().problems().get(0).getMessage())
+                .contains("An unexpected error occurred while trying to update source with ID '1234'");
     }
 
     @Test
@@ -330,23 +265,19 @@ class SourceManagerTest {
     }
 
     @Test
-    void getSourceFromName_shouldReturnError_whenTimeoutOccurs() throws Exception {
+    void getSourceFromName_shouldReturnError_whenTimeoutOccurs() {
+        String errorMessage = "Request Timeout";
+        when(restClientHelper.performPostRequest(
+                        anyString(), anyString(), anyString(), eq(GetSourcesResponse.class), anyBoolean()))
+                .then(invocation -> {
+                    throw new RuntimeException(errorMessage);
+                });
 
-        Response mockResponseObj = new Response.Builder()
-                .request(new Request.Builder().url("http://localhost").build())
-                .protocol(Protocol.HTTP_1_1)
-                .code(408)
-                .message("Request Timeout")
-                .body(ResponseBody.create("{\"error\":\"Request Timeout\"}", MediaType.get("application/json")))
-                .build();
-
-        createMockCall(mockResponseObj);
-
-        Either<FailedOperation, Optional<Source>> result = sourceManagerSpy.getSourceFromName("source-name");
+        Either<FailedOperation, Optional<Source>> result = sourceManager.getSourceFromName("source-name");
 
         assertThat(result.isLeft()).isTrue();
         assertThatCollection(result.getLeft().problems())
-                .anyMatch(problem -> problem.getMessage().contains("Request Timeout"));
+                .anyMatch(problem -> problem.getMessage().contains(errorMessage));
     }
 
     @Test
@@ -376,24 +307,21 @@ class SourceManagerTest {
     }
 
     @Test
-    void triggerSourceRefresh_shouldReturnError_whenInvalidSourceId() throws Exception {
+    void triggerSourceRefresh_shouldReturnError_whenInvalidSourceId() {
         String invalidSourceId = "invalid-source-id";
 
-        Response mockResponseObj = new Response.Builder()
-                .request(new Request.Builder().url("http://localhost").build())
-                .protocol(Protocol.HTTP_1_1)
-                .code(400)
-                .message("Bad Request")
-                .body(ResponseBody.create("{\"error\":\"Bad Request\"}", MediaType.get("application/json")))
-                .build();
+        String errorMessage = "Bad Request";
 
-        createMockCall(mockResponseObj);
+        when(restClientHelper.performPostRequest(anyString(), anyString(), anyString(), eq(Void.class), anyBoolean()))
+                .then(invocation -> {
+                    throw new RuntimeException(errorMessage);
+                });
 
-        Either<FailedOperation, Void> result = sourceManagerSpy.triggerSourceRefresh(invalidSourceId);
+        Either<FailedOperation, Void> result = sourceManager.triggerSourceRefresh(invalidSourceId);
 
         assertThat(result.isLeft()).isTrue();
         assertThatCollection(result.getLeft().problems())
-                .anyMatch(problem -> problem.getMessage().contains("Bad Request"));
+                .anyMatch(problem -> problem.getMessage().contains(errorMessage));
     }
 
     @Test
@@ -460,88 +388,68 @@ class SourceManagerTest {
     }
 
     @Test
-    void getSourceFromName_shouldReturnError_whenSourceNotFound() throws Exception {
+    void getSourceFromName_shouldReturnError_whenSourceNotFound() {
         String sourceName = "non-existent-source";
+        String errorMessage = "Simulated IO Exception";
 
-        doThrow(new RuntimeException("runtime exception"))
-                .when(sourceManagerSpy)
-                .executeRequest(any(Request.class));
+        when(restClientHelper.performPostRequest(
+                        anyString(), anyString(), anyString(), eq(GetSourcesResponse.class), anyBoolean()))
+                .then(invocation -> {
+                    throw new IOException(errorMessage);
+                });
 
-        Either<FailedOperation, Optional<Source>> result = sourceManagerSpy.getSourceFromName(sourceName);
+        Either<FailedOperation, Optional<Source>> result = sourceManager.getSourceFromName(sourceName);
 
         assertThat(result.isLeft()).isTrue();
-        assertThatCollection(result.getLeft().problems())
-                .anyMatch(problem -> problem.getMessage().contains("runtime exception"));
+        assertThat(result.getLeft().message()).contains("An unexpected error occurred while looking for source named");
+        assertThat(result.getLeft().problems())
+                .anyMatch(problem -> problem.getMessage().contains(errorMessage));
     }
 
     @Test
-    void createSource_shouldReturnCreateSourceResponse_whenSuccessful() throws Exception {
+    void createSource_shouldReturnCreateSourceResponse_whenSuccessful() throws JsonProcessingException {
         CreateSourceResponse createSourceResponse = new CreateSourceResponse();
         createSourceResponse.setId("1234");
 
-        Response mockResponseObj = new Response.Builder()
-                .request(new Request.Builder().url("http://localhost").build())
-                .protocol(Protocol.HTTP_1_1)
-                .code(200)
-                .message("OK")
-                .body(ResponseBody.create("{}", MediaType.get("application/json")))
-                .build();
+        when(objectMapper.writeValueAsString(any(CreateSourceRequest.class))).thenReturn("jsonBody");
 
-        createMockCall(mockResponseObj);
+        when(restClientHelper.performPostRequest(
+                        anyString(), anyString(), anyString(), eq(CreateSourceResponse.class), anyBoolean()))
+                .thenReturn(createSourceResponse);
 
-        try (MockedStatic<OkHttpUtils> mockedStatic = mockStatic(OkHttpUtils.class)) {
-            mockedStatic
-                    .when(() -> OkHttpUtils.buildPostRequest(any(), any(), any()))
-                    .thenReturn(mock(Request.class));
+        Either<FailedOperation, CreateSourceResponse> result = sourceManager.createSource(
+                new AthenaEntity("AwsDataCatalog", "database", "table", Region.EU_WEST_1, "primary", "s3://test"),
+                new SiffletSpecific("cron", new Notification.Email("john.doe@witboost.com"), List.of()),
+                "roleArn",
+                "some-token");
 
-            doReturn(createSourceResponse).when(objectMapper).readValue(Mockito.anyString(), Mockito.any(Class.class));
-
-            Either<FailedOperation, CreateSourceResponse> result = sourceManagerSpy.createSource(
-                    new AthenaEntity("AwsDataCatalog", "database", "table", Region.EU_WEST_1, "primary", "s3://test"),
-                    new SiffletSpecific("cron", new Notification.Email("john.doe@witboost.com"), List.of()),
-                    "roleArn",
-                    "some-token");
-
-            assertThat(result.isRight()).isTrue();
-            assertThat(result.get()).isEqualTo(createSourceResponse);
-            assertThat(result.get().getId()).isEqualTo("1234");
-        }
+        assertThat(result.isRight()).isTrue();
+        assertThat(result.get()).isEqualTo(createSourceResponse);
+        assertThat(result.get().getId()).isEqualTo("1234");
     }
 
     @Test
-    void shouldReturnError_whenUnexpectedExceptionOccursWhileCreatingSource() throws Exception {
+    void shouldReturnError_whenUnexpectedExceptionOccursWhileCreatingSource() throws JsonProcessingException {
         AthenaEntity athenaEntity =
                 new AthenaEntity("AwsDataCatalog", "database", "table", Region.EU_WEST_1, "primary", "s3://test");
 
-        Response mockResponseObj = new Response.Builder()
-                .request(new Request.Builder().url("http://localhost").build())
-                .protocol(Protocol.HTTP_1_1)
-                .code(200)
-                .message("OK")
-                .body(ResponseBody.create("{}", MediaType.get("application/json")))
-                .build();
+        String errorMessage = "Internal Server Error";
 
-        createMockCall(mockResponseObj);
+        when(objectMapper.writeValueAsString(any(CreateSourceRequest.class))).thenReturn("jsonBody");
 
-        try (MockedStatic<OkHttpUtils> mockedStatic = mockStatic(OkHttpUtils.class)) {
-            mockedStatic
-                    .when(() -> OkHttpUtils.buildPostRequest(any(), any(), any()))
-                    .thenReturn(mock(Request.class));
+        when(restClientHelper.performPostRequest(anyString(), anyString(), anyString(), any(), anyBoolean()))
+                .then(invocation -> {
+                    throw new RuntimeException(errorMessage);
+                });
 
-            when(objectMapper.readValue(anyString(), eq(CreateSourceResponse.class)))
-                    .thenThrow(new RuntimeException("Simulated error"));
+        Either<FailedOperation, CreateSourceResponse> result = sourceManager.createSource(
+                athenaEntity,
+                new SiffletSpecific("cron", new Notification.Email("john.doe@witboost.com"), List.of()),
+                "roleArn",
+                "source-name");
 
-            Either<FailedOperation, CreateSourceResponse> result = sourceManagerSpy.createSource(
-                    athenaEntity,
-                    new SiffletSpecific("cron", new Notification.Email("john.doe@witboost.com"), List.of()),
-                    "roleArn",
-                    "source-name");
-
-            assertThat(result.isLeft()).isTrue();
-            assertThat(result.getLeft().message()).contains("Unexpected error while creating source 'database'");
-            assertThatCollection(result.getLeft().problems())
-                    .anyMatch(problem -> problem.getMessage().contains("Simulated error"));
-        }
+        assertThat(result.isLeft()).isTrue();
+        assertThat(result.getLeft().problems().get(0).getMessage()).contains(errorMessage);
     }
 
     @Test
@@ -624,7 +532,7 @@ class SourceManagerTest {
     }
 
     @Test
-    void getDomainFromName_shouldReturnDomain_whenExists() throws Exception {
+    void getDomainFromName_shouldReturnDomain_whenExists() {
         String domainName = "TestDomain";
         Domain domain = new Domain();
         domain.setId("domain-123");
@@ -633,66 +541,46 @@ class SourceManagerTest {
         GetDomainsResponse response = new GetDomainsResponse();
         response.setData(List.of(domain));
 
-        Response mockResponse = new Response.Builder()
-                .request(new Request.Builder().url("http://localhost").build())
-                .protocol(Protocol.HTTP_1_1)
-                .code(200)
-                .message("OK")
-                .body(ResponseBody.create("{}", MediaType.get("application/json")))
-                .build();
+        when(restClientHelper.performGetRequest(anyString(), anyString(), eq(GetDomainsResponse.class), anyBoolean()))
+                .thenReturn(response);
 
-        createMockCall(mockResponse);
-        when(objectMapper.readValue(anyString(), eq(GetDomainsResponse.class))).thenReturn(response);
-
-        Either<FailedOperation, Optional<Domain>> result = sourceManagerSpy.getDomainFromName(domainName);
+        Either<FailedOperation, Optional<Domain>> result = sourceManager.getDomainFromName(domainName);
 
         assertThat(result.isRight()).isTrue();
         assertThat(result.get()).contains(domain);
     }
 
     @Test
-    void getDomainFromName_shouldReturnEmpty_whenDomainNotFound() throws Exception {
+    void getDomainFromName_shouldReturnEmpty_whenDomainNotFound() {
         String domainName = "NonExistentDomain";
         GetDomainsResponse response = new GetDomainsResponse();
         response.setData(Collections.emptyList());
 
-        Response mockResponse = new Response.Builder()
-                .request(new Request.Builder().url("http://localhost").build())
-                .protocol(Protocol.HTTP_1_1)
-                .code(200)
-                .message("OK")
-                .body(ResponseBody.create("{}", MediaType.get("application/json")))
-                .build();
+        when(restClientHelper.performGetRequest(anyString(), anyString(), eq(GetDomainsResponse.class), anyBoolean()))
+                .thenReturn(response);
 
-        createMockCall(mockResponse);
-        when(objectMapper.readValue(anyString(), eq(GetDomainsResponse.class))).thenReturn(response);
-
-        Either<FailedOperation, Optional<Domain>> result = sourceManagerSpy.getDomainFromName(domainName);
+        Either<FailedOperation, Optional<Domain>> result = sourceManager.getDomainFromName(domainName);
 
         assertThat(result.isRight()).isTrue();
         assertThat(result.get()).isEmpty();
     }
 
     @Test
-    void getDomainFromName_shouldReturnError_whenApiFails() throws Exception {
-        Response mockErrorResponse = new Response.Builder()
-                .request(new Request.Builder().url("http://localhost").build())
-                .protocol(Protocol.HTTP_1_1)
-                .code(500)
-                .message("Internal Server Error")
-                .body(ResponseBody.create("{\"error\":\"Internal Server Error\"}", MediaType.get("application/json")))
-                .build();
+    void getDomainFromName_shouldReturnError_whenApiFails() {
 
-        createMockCall(mockErrorResponse);
+        String errorMessage = "Internal Server Error";
 
-        Either<FailedOperation, Optional<Domain>> result = sourceManagerSpy.getDomainFromName("TestDomain");
+        when(restClientHelper.performGetRequest(anyString(), anyString(), eq(GetDomainsResponse.class), anyBoolean()))
+                .thenThrow(new RuntimeException(errorMessage));
+
+        Either<FailedOperation, Optional<Domain>> result = sourceManager.getDomainFromName("TestDomain");
 
         assertThat(result.isLeft()).isTrue();
-        assertThat(result.getLeft().message()).contains("Failed to list Sifflet domains");
+        assertThat(result.getLeft().problems().get(0).getMessage()).contains(errorMessage);
     }
 
     @Test
-    void getDatasetsForSource_shouldReturnDatasets_whenExists() throws Exception {
+    void getDatasetsForSource_shouldReturnDatasets_whenExists() {
         String sourceID = "source-123";
         Dataset dataset1 = new Dataset();
         dataset1.setUrn("urn:dataset:1");
@@ -702,68 +590,49 @@ class SourceManagerTest {
         GetAssetsResponse response = new GetAssetsResponse();
         response.setData(List.of(dataset1, dataset2));
 
-        Response mockResponse = new Response.Builder()
-                .request(new Request.Builder().url("http://localhost").build())
-                .protocol(Protocol.HTTP_1_1)
-                .code(200)
-                .message("OK")
-                .body(ResponseBody.create("{}", MediaType.get("application/json")))
-                .build();
+        when(restClientHelper.performPostRequest(
+                        anyString(), anyString(), anyString(), eq(GetAssetsResponse.class), anyBoolean()))
+                .thenReturn(response);
 
-        createMockCall(mockResponse);
-        when(objectMapper.readValue(anyString(), eq(GetAssetsResponse.class))).thenReturn(response);
-
-        Either<FailedOperation, List<Dataset>> result = sourceManagerSpy.getDatasetsForSource(sourceID);
+        Either<FailedOperation, List<Dataset>> result = sourceManager.getDatasetsForSource(sourceID);
 
         assertThat(result.isRight()).isTrue();
         assertThat(result.get()).containsExactly(dataset1, dataset2);
     }
 
     @Test
-    void getDatasetsForSource_shouldReturnEmpty_whenNoDatasetsFound() throws Exception {
+    void getDatasetsForSource_shouldReturnEmpty_whenNoDatasetsFound() {
         String sourceID = "source-123";
         GetAssetsResponse response = new GetAssetsResponse();
         response.setData(Collections.emptyList());
 
-        Response mockResponse = new Response.Builder()
-                .request(new Request.Builder().url("http://localhost").build())
-                .protocol(Protocol.HTTP_1_1)
-                .code(200)
-                .message("OK")
-                .body(ResponseBody.create("{}", MediaType.get("application/json")))
-                .build();
+        when(restClientHelper.performPostRequest(
+                        anyString(), anyString(), anyString(), eq(GetAssetsResponse.class), anyBoolean()))
+                .thenReturn(response);
 
-        createMockCall(mockResponse);
-        when(objectMapper.readValue(anyString(), eq(GetAssetsResponse.class))).thenReturn(response);
-
-        Either<FailedOperation, List<Dataset>> result = sourceManagerSpy.getDatasetsForSource(sourceID);
+        Either<FailedOperation, List<Dataset>> result = sourceManager.getDatasetsForSource(sourceID);
 
         assertThat(result.isRight()).isTrue();
         assertThat(result.get()).isEmpty();
     }
 
     @Test
-    void getDatasetsForSource_shouldReturnError_whenApiFails() throws Exception {
+    void getDatasetsForSource_shouldReturnError_whenApiFails() {
         String sourceID = "source-123";
+        String errorMessage = "Internal Server Error";
 
-        Response mockErrorResponse = new Response.Builder()
-                .request(new Request.Builder().url("http://localhost").build())
-                .protocol(Protocol.HTTP_1_1)
-                .code(500)
-                .message("Internal Server Error")
-                .body(ResponseBody.create("{\"error\":\"Internal Server Error\"}", MediaType.get("application/json")))
-                .build();
+        when(restClientHelper.performPostRequest(
+                        anyString(), anyString(), anyString(), eq(GetAssetsResponse.class), anyBoolean()))
+                .thenThrow(new RuntimeException(errorMessage));
 
-        createMockCall(mockErrorResponse);
-
-        Either<FailedOperation, List<Dataset>> result = sourceManagerSpy.getDatasetsForSource(sourceID);
+        Either<FailedOperation, List<Dataset>> result = sourceManager.getDatasetsForSource(sourceID);
 
         assertThat(result.isLeft()).isTrue();
-        assertThat(result.getLeft().message()).contains("Error getting the list of datasets");
+        assertThat(result.getLeft().problems().get(0).getMessage()).contains(errorMessage);
     }
 
     @Test
-    void assignDomainToDataSources_shouldSucceed_whenApiCallIsSuccessful() throws Exception {
+    void assignDomainToDataSources_shouldSucceed_whenApiCallIsSuccessful() throws JsonProcessingException {
         String domainID = "domain-123";
         String domainName = "TestDomain";
 
@@ -773,81 +642,36 @@ class SourceManagerTest {
         dataset2.setUrn("urn:dataset:2");
         List<Dataset> datasets = (List.of(dataset1, dataset2));
 
-        try (MockedStatic<OkHttpUtils> mockedStatic = mockStatic(OkHttpUtils.class)) {
-            mockedStatic
-                    .when(() -> OkHttpUtils.buildPutRequest(any(), any(), any()))
-                    .thenReturn(mock(Request.class));
+        when(objectMapper.writeValueAsString(any(DomainAssignmentRequest.class)))
+                .thenReturn("jsonBody");
 
-            Response mockResponse = new Response.Builder()
-                    .request(new Request.Builder().url("http://localhost").build())
-                    .protocol(Protocol.HTTP_1_1)
-                    .code(200)
-                    .message("OK")
-                    .body(ResponseBody.create("{}", MediaType.get("application/json")))
-                    .build();
+        when(restClientHelper.performPutRequest(anyString(), anyString(), anyString(), eq(Void.class), anyBoolean()))
+                .thenReturn(null);
 
-            createMockCall(mockResponse);
+        Either<FailedOperation, Void> result = sourceManager.assignDomainToDataSources(domainID, domainName, datasets);
 
-            Either<FailedOperation, Void> result =
-                    sourceManagerSpy.assignDomainToDataSources(domainID, domainName, datasets);
-
-            assertThat(result.isRight()).isTrue();
-        }
+        assertThat(result.isRight()).isTrue();
     }
 
     @Test
-    void assignDomainToDataSources_shouldReturnError_whenApiFails() throws Exception {
+    void assignDomainToDataSources_shouldReturnError_whenUnexpectedExceptionOccurs() throws JsonProcessingException {
         String domainID = "domain-123";
         String domainName = "TestDomain";
         Dataset dataset1 = new Dataset();
         dataset1.setUrn("urn:dataset:1");
         List<Dataset> datasets = (List.of(dataset1));
 
-        try (MockedStatic<OkHttpUtils> mockedStatic = mockStatic(OkHttpUtils.class)) {
-            mockedStatic
-                    .when(() -> OkHttpUtils.buildPutRequest(any(), any(), any()))
-                    .thenReturn(mock(Request.class));
+        String errorMessage = "Unexpected error";
 
-            Response mockErrorResponse = new Response.Builder()
-                    .request(new Request.Builder().url("http://localhost").build())
-                    .protocol(Protocol.HTTP_1_1)
-                    .code(400)
-                    .message("Bad Request")
-                    .body(ResponseBody.create("{\"error\":\"Bad Request\"}", MediaType.get("application/json")))
-                    .build();
+        when(objectMapper.writeValueAsString(any(DomainAssignmentRequest.class)))
+                .thenReturn("jsonBody");
 
-            createMockCall(mockErrorResponse);
+        when(restClientHelper.performPutRequest(anyString(), anyString(), anyString(), eq(Void.class), anyBoolean()))
+                .thenThrow(new RuntimeException(errorMessage));
 
-            Either<FailedOperation, Void> result =
-                    sourceManagerSpy.assignDomainToDataSources(domainID, domainName, datasets);
+        Either<FailedOperation, Void> result = sourceManager.assignDomainToDataSources(domainID, domainName, datasets);
 
-            assertThat(result.isLeft()).isTrue();
-            assertThat(result.getLeft().message()).contains("Error assigning datasets to domain");
-        }
-    }
-
-    @Test
-    void assignDomainToDataSources_shouldReturnError_whenUnexpectedExceptionOccurs() throws Exception {
-        String domainID = "domain-123";
-        String domainName = "TestDomain";
-        Dataset dataset1 = new Dataset();
-        dataset1.setUrn("urn:dataset:1");
-        List<Dataset> datasets = (List.of(dataset1));
-
-        try (MockedStatic<OkHttpUtils> mockedStatic = mockStatic(OkHttpUtils.class)) {
-            mockedStatic
-                    .when(() -> OkHttpUtils.buildPutRequest(any(), any(), any()))
-                    .thenReturn(mock(Request.class));
-
-            doThrow(new RuntimeException("Unexpected error"))
-                    .when(sourceManagerSpy)
-                    .executeRequest(any(Request.class));
-
-            Either<FailedOperation, Void> result =
-                    sourceManagerSpy.assignDomainToDataSources(domainID, domainName, datasets);
-
-            assertThat(result.isLeft()).isTrue();
-            assertThat(result.getLeft().problems().get(0).getMessage()).contains("Unexpected error");
-        }
+        assertThat(result.isLeft()).isTrue();
+        assertThat(result.getLeft().problems().get(0).getMessage()).contains("Unexpected error");
     }
 }

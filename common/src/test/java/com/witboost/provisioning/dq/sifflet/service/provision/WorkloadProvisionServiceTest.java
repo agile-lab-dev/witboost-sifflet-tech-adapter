@@ -9,11 +9,11 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.witboost.provisioning.dq.sifflet.cli.WorkspaceManager;
 import com.witboost.provisioning.dq.sifflet.client.SourceManager;
-import com.witboost.provisioning.dq.sifflet.model.AthenaEntity;
 import com.witboost.provisioning.dq.sifflet.model.SiffletProvisionOutput;
 import com.witboost.provisioning.dq.sifflet.model.SiffletSpecific;
+import com.witboost.provisioning.dq.sifflet.model.athena.AthenaEntity;
 import com.witboost.provisioning.dq.sifflet.model.cli.*;
-import com.witboost.provisioning.dq.sifflet.util.ResourceUtils;
+import com.witboost.provisioning.dq.sifflet.utils.ResourceUtils;
 import com.witboost.provisioning.model.DataProduct;
 import com.witboost.provisioning.model.Specific;
 import com.witboost.provisioning.model.Workload;
@@ -121,7 +121,9 @@ class WorkloadProvisionServiceTest {
         var output = workloadProvisionService.provision(provisionRequest);
         assertTrue(output.isRight());
         assertTrue(output.get().getPrivateInfo().isPresent());
-        assertEquals(output.get().getPrivateInfo().get(), List.of(new SiffletProvisionOutput("sourceId", workspace)));
+        assertEquals(
+                new SiffletProvisionOutput("sourceId", workspace),
+                output.get().getPrivateInfo().get());
     }
 
     @Test

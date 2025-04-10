@@ -6,6 +6,7 @@ import static io.vavr.control.Either.right;
 import com.witboost.provisioning.dq.sifflet.cli.WorkspaceManager;
 import com.witboost.provisioning.dq.sifflet.client.SourceManager;
 import com.witboost.provisioning.dq.sifflet.model.*;
+import com.witboost.provisioning.dq.sifflet.model.athena.AthenaEntity;
 import com.witboost.provisioning.dq.sifflet.model.cli.Dataset;
 import com.witboost.provisioning.dq.sifflet.model.cli.Monitor;
 import com.witboost.provisioning.dq.sifflet.model.cli.Workspace;
@@ -72,7 +73,7 @@ public class WorkloadProvisionService implements ProvisionService {
 
                 return ErrorUtils.mergeSequence(response, "occurred while provisioning Sifflet workload")
                         .map(output -> ProvisionInfo.builder()
-                                .privateInfo(Optional.of(output))
+                                .privateInfo(output.isEmpty() ? Optional.empty() : Optional.of(output.get(0)))
                                 .build());
 
             } else {

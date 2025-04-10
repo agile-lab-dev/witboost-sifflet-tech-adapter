@@ -1,4 +1,4 @@
-package com.witboost.provisioning.dq.sifflet.model;
+package com.witboost.provisioning.dq.sifflet.model.athena;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;

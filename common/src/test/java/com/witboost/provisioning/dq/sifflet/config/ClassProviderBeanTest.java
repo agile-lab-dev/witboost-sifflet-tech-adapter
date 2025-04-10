@@ -8,9 +8,6 @@ import com.witboost.provisioning.model.Workload;
 import io.vavr.control.Option;
 import org.junit.jupiter.api.Test;
 
-/*
- * TODO Review these tests after you have implemented the tech adapter logic
- */
 class ClassProviderBeanTest {
 
     ClassProviderBean classProviderBean = new ClassProviderBean();

@@ -2,19 +2,16 @@ package com.witboost.provisioning.dq.sifflet.client;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.witboost.provisioning.dq.sifflet.model.*;
+import com.witboost.provisioning.dq.sifflet.model.athena.AthenaEntity;
 import com.witboost.provisioning.dq.sifflet.model.client.*;
-import com.witboost.provisioning.dq.sifflet.utils.OkHttpUtils;
+import com.witboost.provisioning.dq.sifflet.utils.RestClientHelper;
 import com.witboost.provisioning.dq.sifflet.utils.Utils;
 import com.witboost.provisioning.model.common.FailedOperation;
 import com.witboost.provisioning.model.common.Problem;
 import io.vavr.control.Either;
 import jakarta.annotation.PostConstruct;
 import jakarta.validation.constraints.NotBlank;
-import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
-import okhttp3.*;
+import java.util.*;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,17 +33,16 @@ public class SourceManager {
     private int sourceUpdateTimeoutSeconds;
 
     private final ObjectMapper objectMapper;
-
-    private final OkHttpClient okHttpClient;
+    private final RestClientHelper restClientHelper;
 
     private static final String API_V1_SOURCES = "/api/v1/sources/";
     private static final String API_UI_V1_DATASOURCES = "/api/ui/v1/datasources";
     private static final String API_UI_V1_DOMAINS = "/api/ui/v1/domains";
     private static final String API_V1_ASSETS_SEARCH = "/api/v1/assets/search";
 
-    public SourceManager(ObjectMapper objectMapper, OkHttpClient okHttpClient) {
+    public SourceManager(ObjectMapper objectMapper, RestClientHelper restClientHelper) {
         this.objectMapper = objectMapper;
-        this.okHttpClient = okHttpClient;
+        this.restClientHelper = restClientHelper;
     }
 
     @PostConstruct
@@ -102,26 +98,9 @@ public class SourceManager {
 
     protected Either<FailedOperation, Source> getSourceFromID(String sourceID) {
         try {
+
             String url = basePath + API_V1_SOURCES + sourceID;
-            Request request = OkHttpUtils.buildGetRequest(url, token);
-
-            Response response = executeRequest(request);
-
-            if (!response.isSuccessful() || response.body() == null) {
-                String responseBody = response.body() != null ? response.body().string() : "No response body";
-                String error = String.format(
-                        "Error getting source information for source with ID: %s. Response: %s",
-                        sourceID, responseBody);
-                logger.error(error);
-                return Either.left(new FailedOperation(
-                        String.format(
-                                "Error getting source information for source with ID '%s'. Check details for more information",
-                                sourceID),
-                        List.of(new Problem(error))));
-            }
-
-            String responseBody = response.body().string();
-            return parseResponseBody(responseBody, Source.class);
+            return Either.right(restClientHelper.performGetRequest(url, token, Source.class, true));
 
         } catch (Exception e) {
             String error = String.format(
@@ -136,16 +115,6 @@ public class SourceManager {
         }
     }
 
-    private <T> Either<FailedOperation, T> parseResponseBody(String responseBody, Class<T> tClass) {
-        try {
-            return Either.right(objectMapper.readValue(responseBody, tClass));
-        } catch (IOException e) {
-            String error = "Error parsing HTTP response: " + e.getMessage();
-            logger.error(error, e);
-            return Either.left(new FailedOperation(error, List.of(new Problem(error, e))));
-        }
-    }
-
     @NotNull
     protected Either<FailedOperation, CreateSourceResponse> createSource(
             AthenaEntity athenaEntity, SiffletSpecific siffletSpecific, String roleArn, String sourceName) {
@@ -153,30 +122,14 @@ public class SourceManager {
             CreateSourceRequest createSourceRequest = createSourceRequest(athenaEntity, siffletSpecific, roleArn);
             String jsonRequest = objectMapper.writeValueAsString(createSourceRequest);
             String url = basePath + API_UI_V1_DATASOURCES;
-            Request request = OkHttpUtils.buildPostRequest(url, jsonRequest, token);
-
             logger.info("Creating new source: {}", sourceName);
-            Response response = executeRequest(request);
 
-            if (!response.isSuccessful() || response.body() == null) {
-                String responseBody = response.body() != null ? response.body().string() : "No response body";
-                String error = String.format(
-                        "Failed to create source: %s. %s. Response: %s.", sourceName, response.message(), responseBody);
-                logger.error(error);
-                return Either.left(new FailedOperation(
-                        String.format("Failed to create source '%s'. Check details for more information", sourceName),
-                        List.of(new Problem(error))));
-            }
-
-            String responseBody = response.body().string();
-
-            Either<FailedOperation, CreateSourceResponse> createSourceResponse =
-                    parseResponseBody(responseBody, CreateSourceResponse.class);
-            if (createSourceResponse.isLeft()) return Either.left(createSourceResponse.getLeft());
+            CreateSourceResponse createSourceResponse =
+                    restClientHelper.performPostRequest(url, token, jsonRequest, CreateSourceResponse.class, true);
 
             logger.info("Source created successfully: {}", sourceName);
 
-            return Either.right(createSourceResponse.get());
+            return Either.right(createSourceResponse);
         } catch (Exception e) {
             String error = String.format(
                     "Unexpected error while creating source '%s': %s", athenaEntity.getDatabase(), e.getMessage());
@@ -197,28 +150,9 @@ public class SourceManager {
             String jsonBody = String.format(
                     "{\"filter\":{\"textSearch\":\"%s\"},\"pagination\":{\"itemsPerPage\":-1,\"page\":0}}", sourceName);
 
-            Request request = OkHttpUtils.buildPostRequest(url, jsonBody, token);
-
-            Response response = executeRequest(request);
-
-            if (!response.isSuccessful() || response.body() == null) {
-                String responseBody = response.body() != null ? response.body().string() : "No response body";
-                String errorMessage = String.format(
-                        "Failed to fetch sources. HTTP %d: %s. Details: %s",
-                        response.code(), response.message(), responseBody);
-
-                return Either.left(new FailedOperation(
-                        "Failed to fetch sources from Sifflet environment. Check details for more information",
-                        List.of(new Problem(errorMessage))));
-            }
-
-            String responseBody = response.body().string();
-
-            Either<FailedOperation, GetSourcesResponse> getSourcesResponse =
-                    parseResponseBody(responseBody, GetSourcesResponse.class);
-            if (getSourcesResponse.isLeft()) return Either.left(getSourcesResponse.getLeft());
-
-            Optional<Source> foundSource = getSourcesResponse.get().getData().stream()
+            GetSourcesResponse getSourcesResponse =
+                    restClientHelper.performPostRequest(url, token, jsonBody, GetSourcesResponse.class, true);
+            Optional<Source> foundSource = getSourcesResponse.getData().stream()
                     .filter(source -> source.getName().equals(sourceName))
                     .findFirst();
 
@@ -249,24 +183,9 @@ public class SourceManager {
     protected Either<FailedOperation, Void> triggerSourceRefresh(String sourceID) {
         try {
             String url = String.format("%s%s/%s/run", basePath, API_V1_SOURCES, sourceID);
-            Request request = OkHttpUtils.buildPostRequest(url, "{}", token);
+            Void response = restClientHelper.performPostRequest(url, token, "{}", Void.class, false);
 
-            Response response = executeRequest(request);
-
-            if (!response.isSuccessful()) {
-                String responseBody = response.body() != null ? response.body().string() : "No response body";
-
-                String error = String.format(
-                        "Failed to trigger source metadata ingestion job for source %s. Response status code: %d. Details: %s. Response: %s",
-                        sourceID, response.code(), response.message(), responseBody);
-                return Either.left(new FailedOperation(
-                        String.format(
-                                "Failed to trigger source metadata ingestion job for source '%s'. Check details for more information",
-                                sourceID),
-                        List.of(new Problem(error))));
-            }
-
-            return Either.right(null);
+            return Either.right(response);
 
         } catch (Exception e) {
             String error = String.format(
@@ -291,7 +210,7 @@ public class SourceManager {
                 SourceType.ATHENA.getValue(),
                 athenaEntity.getCatalog(),
                 athenaEntity.getRegion().id(),
-                athenaEntity.getS3Bucket() + "sifflet/" + athenaEntity.getDatabase(),
+                athenaEntity.getS3Bucket() + "/sifflet/",
                 athenaEntity.getWorkGroup(),
                 athenaEntity.getDatabase(),
                 roleArn,
@@ -307,14 +226,8 @@ public class SourceManager {
     }
 
     protected static String computeSourceName(String databaseName) {
-
         String hash = Utils.sha256(databaseName);
-
-        return databaseName + hash.substring(0, 5);
-    }
-
-    protected Response executeRequest(Request request) throws IOException {
-        return okHttpClient.newCall(request).execute();
+        return databaseName + "_" + hash.substring(0, 5);
     }
 
     protected Either<FailedOperation, Void> waitForSourceToBeUpdated(String sourceID, String sourceName) {
@@ -401,28 +314,10 @@ public class SourceManager {
     protected Either<FailedOperation, Optional<Domain>> getDomainFromName(String domainName) {
         try {
             String url = String.format("%s%s", basePath, API_UI_V1_DOMAINS);
-            Request request = OkHttpUtils.buildGetRequest(url, token);
 
-            Response response = executeRequest(request);
-
-            if (!response.isSuccessful() || response.body() == null) {
-                String responseBody = response.body() != null ? response.body().string() : "No response body";
-
-                String error = String.format(
-                        "Failed to list Sifflet domains. Response status code: %d. Details: %s. Response: %s",
-                        response.code(), response.message(), responseBody);
-                return Either.left(new FailedOperation(
-                        "Failed to list Sifflet domains. Check details for more information",
-                        List.of(new Problem(error))));
-            }
-
-            String responseBody = response.body().string();
-
-            Either<FailedOperation, GetDomainsResponse> getDomainsResponses =
-                    parseResponseBody(responseBody, GetDomainsResponse.class);
-            if (getDomainsResponses.isLeft()) return Either.left(getDomainsResponses.getLeft());
-
-            Optional<Domain> foundDomain = getDomainsResponses.get().getData().stream()
+            GetDomainsResponse getDomainsResponses =
+                    restClientHelper.performGetRequest(url, token, GetDomainsResponse.class, true);
+            Optional<Domain> foundDomain = getDomainsResponses.getData().stream()
                     .filter(domain -> domain.getName().equalsIgnoreCase(domainName))
                     .findFirst();
 
@@ -457,30 +352,10 @@ public class SourceManager {
             String url = basePath + API_V1_ASSETS_SEARCH;
             String jsonBody = "{ \"filter\": { \"sourceId\": [ \"" + sourceID + "\" ] } }";
 
-            Request request = OkHttpUtils.buildPostRequest(url, jsonBody, token);
+            GetAssetsResponse getAssetsResponses =
+                    restClientHelper.performPostRequest(url, token, jsonBody, GetAssetsResponse.class, true);
 
-            Response response = executeRequest(request);
-
-            if (!response.isSuccessful() || response.body() == null) {
-                String responseBody = response.body() != null ? response.body().string() : "No response body";
-                String error = String.format(
-                        "Error getting the list of datasets for source with ID '%s'. Response: %s",
-                        sourceID, responseBody);
-                logger.error(error);
-                return Either.left(new FailedOperation(
-                        String.format(
-                                "Error getting the list of datasets for source with ID '%s'. Check details for more information",
-                                sourceID),
-                        List.of(new Problem(error))));
-            }
-
-            String responseBody = response.body().string();
-
-            Either<FailedOperation, GetAssetsResponse> getAssetsResponses =
-                    parseResponseBody(responseBody, GetAssetsResponse.class);
-            if (getAssetsResponses.isLeft()) return Either.left(getAssetsResponses.getLeft());
-
-            return Either.right(getAssetsResponses.get().getData());
+            return Either.right(getAssetsResponses.getData());
 
         } catch (Exception e) {
             String error = String.format(
@@ -510,23 +385,9 @@ public class SourceManager {
 
             String jsonBody = objectMapper.writeValueAsString(domainAssignmentRequest);
 
-            Request request = OkHttpUtils.buildPutRequest(url, jsonBody, token);
+            Void response = restClientHelper.performPutRequest(url, token, jsonBody, Void.class, false);
 
-            Response response = executeRequest(request);
-
-            if (!response.isSuccessful()) {
-                String responseBody = response.body() != null ? response.body().string() : "No response body";
-                String error = String.format(
-                        "Error assigning datasets to domain named '%s'. Response: %s", domainName, responseBody);
-                logger.error(error);
-                return Either.left(new FailedOperation(
-                        String.format(
-                                "Error assigning datasets to domain named '%s'. Check details for more information",
-                                domainName),
-                        List.of(new Problem(error))));
-            }
-
-            return Either.right(null);
+            return Either.right(response);
 
         } catch (Exception e) {
             String error = String.format(
