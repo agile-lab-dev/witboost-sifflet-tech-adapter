@@ -1,9 +1,12 @@
 package com.witboost.provisioning.dq.sifflet.model.client;
 
 import java.util.List;
-import lombok.Data;
+import lombok.*;
 
-@Data
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 public class Dataset {
 
     private String id;

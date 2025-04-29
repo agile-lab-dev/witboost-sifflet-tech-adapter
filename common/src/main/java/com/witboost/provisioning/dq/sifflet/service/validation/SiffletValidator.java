@@ -16,6 +16,10 @@ import com.witboost.provisioning.model.common.Problem;
 import com.witboost.provisioning.parser.Parser;
 import io.vavr.Tuple2;
 import io.vavr.control.Either;
+import jakarta.validation.Valid;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
+import jakarta.validation.ValidatorFactory;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -27,23 +31,35 @@ public class SiffletValidator {
 
     private static final Logger logger = LoggerFactory.getLogger(SiffletValidator.class);
 
-    public static Either<FailedOperation, Void> validateSiffletComponent(SiffletSpecific siffletSpecific) {
-        if (siffletSpecific.getNotification() == null) {
-            var failedOperation = new FailedOperation(
-                    "Sifflet component specific doesn't contain notification information. See details for more information",
-                    Optional.empty(),
-                    Optional.of("specific.notification"),
-                    List.of(new Problem("Sifflet component specific is missing notification field")));
-            logger.error("Error, received incomplete specific: {}", failedOperation);
-            return left(failedOperation);
+    public static Either<FailedOperation, Void> validateSiffletComponent(@Valid SiffletSpecific siffletSpecific) {
+        Validator validator;
+        try (ValidatorFactory factory = Validation.buildDefaultValidatorFactory()) {
+            validator = factory.getValidator();
         }
-        return right(null);
+
+        var violations = validator.validate(siffletSpecific);
+
+        if (!violations.isEmpty()) {
+            List<Problem> problems = violations.stream()
+                    .map(violation -> new Problem(violation.getMessage()))
+                    .collect(Collectors.toList());
+
+            logger.error("Validation errors occurred while validating Sifflet specific section: {}", problems);
+            return Either.left(new FailedOperation(
+                    "Validation error(s) occurred while validating Sifflet specific section", problems));
+        }
+
+        return Either.right(null);
     }
 
     public static Either<FailedOperation, Tuple2<AthenaEntity, SiffletDataContract>>
             extractAndValidateSiffletOutputPortDependency(JsonNode outputPortDependency) {
+
         var eitherOutputPort = Parser.parseComponent(outputPortDependency, OutputPort.class, Specific.class);
         if (eitherOutputPort.isLeft()) return left(eitherOutputPort.getLeft());
+
+        logger.info("Input JsonNode: {}", outputPortDependency.toPrettyString());
+        logger.info("Resolved dependency: {}", outputPortDependency.get("dependency"));
 
         OutputPort<Specific> outputPort = (OutputPort<Specific>) eitherOutputPort.get();
 
@@ -92,7 +108,7 @@ public class SiffletValidator {
         }
     }
 
-    private static Either<FailedOperation, AthenaEntity> getAthenaEntityFromInfo(AthenaInfo athenaInfo) {
+    protected static Either<FailedOperation, AthenaEntity> getAthenaEntityFromInfo(AthenaInfo athenaInfo) {
         Map<String, Optional<String>> neededValues = Stream.of("catalog", "database", "region", "view", "s3Location")
                 .map(key -> new Tuple2<>(key, athenaInfo.getInfoValue(key)))
                 .collect(Collectors.toMap(t -> t._1, t -> t._2));

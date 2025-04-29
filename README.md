@@ -8,24 +8,33 @@ Designed by [Agile Lab](https://www.agilelab.it/), Witboost is a versatile platf
 
 This repository is part of our [Starter Kit](https://github.com/agile-lab-dev/witboost-starter-kit) meant to showcase Witboost integration capabilities and provide a "batteries-included" product.
 
-# Java Scaffold
+# Sifflet Tech Adapter
 
 - [Overview](#overview)
 - [Building](#building)
+- [Configuring](#configuring)
 - [Running](#running)
 - [OpenTelemetry Setup](docs/opentelemetry.md)
 - [Deploying](#deploying)
+- [HLD](docs/HLD/HLD.md)
 
 
 ## Overview
 
-This project provides a scaffold to develop a Tech Adapter from scratch using Java & SpringBoot leveraging the [Java Tech Adapter Framework](https://github.com/agile-lab-dev/witboost-java-tech-adapter-framework).
+This project implements a simple Tech Adapter for Sifflet.
 
 ### What's a Tech Adapter?
 
 A Tech Adapter (formerly a Specific Provisioner) is a microservice which is in charge of deploying components that use a specific technology. When the deployment of a Data Product is triggered, the platform generates it descriptor and orchestrates the deployment of every component contained in the Data Product. For every such component the platform knows which Tech Adapter is responsible for its deployment, and can thus send a provisioning request with the descriptor to it so that the Tech Adapter can perform whatever operation is required to fulfill this request and report back the outcome to the platform.
 
 You can learn more about how the Tech Adapters fit in the broader picture [here](https://docs.witboost.com/docs/p2_arch/p1_intro/#deploy-flow).
+
+### Sifflet
+
+Sifflet is a data observability platform that helps monitor the quality, availability, and reliability of data. It automatically detects anomalies, schema issues, and threshold breaches. It enables data engineering and analytics teams to proactively manage data incidents.
+
+Learn more on [Sifflet official documentation](https://docs.siffletdata.com/).
+
 
 ### Software stack
 
@@ -65,7 +74,7 @@ To set up pre-commit hooks, follow the below steps:
 pre-commit --version
 ```
 
-If you see something like `pre-commit 3.3.3`, your installation is ready to use!
+If you see something like `pre-commit 4.0.1`, your installation is ready to use!
 
 
 - To use pre-commit, create a file named `.pre-commit-config.yaml` inside the project directory. This file tells pre-commit which hooks needed to be installed based on your inputs. Below is an example configuration:
@@ -107,10 +116,10 @@ export PROVISIONER_VERSION=0.0.0-SNAPHSOT
 mvn compile
 ```
 
-**Type check:** is handled by Checkstyle:
+**Type check:** is handled by Spotless:
 
 ```bash
-mvn checkstyle:check
+mvn spotless:check
 ```
 
 **Bug checks:** are handled by SpotBugs:
@@ -146,16 +155,24 @@ export PROVISIONER_VERSION=$(date +%Y%m%d-%H%M%S);
 
 **CI/CD:** the pipeline is based on GitLab CI as that's what we use internally. It's configured by the `.gitlab-ci.yaml` file in the root of the repository. You can use that as a starting point for your customizations.
 
-### Implementing server logic
 
-The Java Scaffold utilizes the Java Tech Adapter Framework, which provides abstraction of the API layer, error handling, model definition, and more; allowing Tech Adapter developers to focus only on implementing the specific business logic related to the technology for which the Tech Adapter is being developed. For this, four interfaces need to be implemented and injected via Spring beans in order to make your Tech Adapter work:
+## Configuring
 
-- **ProvisionService**: Provides the business logic for component provision, unprovision, update access control, and reverse provisioning.
-- **ComponentValidationService**: Provides the business logic for component validation, executed for validation and (un)provisioning operations.
-- **ComponentClassProvider**: Interface that maps a component's useCaseTemplateId with a Class that represents the Component model, allowing to use extensions of the provided Components.
-- **SpecificClassProvider**: Interface that maps a component's useCaseTemplateId with a Class that represents the Specific model.
+Application configuration is handled using the features provided by Spring Boot. You can find the default settings in the [application.yml](common/src/main/resources/application.yml). Customize it and use the options provided by the framework according to your needs.
 
-Follow the Java Tech Adapter Framework [usage guide](https://github.com/agile-lab-dev/witboost-java-tech-adapter-framework/tree/master/docs/usage.md) for more information on how to develop your Tech Adapter.
+
+The following table lists the configuration properties required for integrating the application with Sifflet. These settings can be passed as environment variables.
+
+| Environment Variable              | Description                                                  | Configuration                      |
+|:----------------------------------|:-------------------------------------------------------------|:-----------------------------------|
+| **SIFFLET_TOKEN**                 | Authentication token for accessing the Sifflet API           | sifflet.token                      |
+| **SIFFLET_BASE_PATH**             | Base URL for sending requests to the Sifflet API             | sifflet.basePath                   |
+| **SOURCE_UPDATE_TIMEOUT_SECONDS** | Timeout (in seconds) for updating source metadata in Sifflet | sifflet.sourceUpdateTimeoutSeconds |
+| **SIFFLET_SOURCE_IAM_ROLE**       | AWS IAM Role ARN used to connect Sifflet to Athena databases | sifflet.athena.iamRole             |
+
+### IAM permissions
+
+To ensure the microservice functions correctly, the IAM role specified in `sifflet.athena.iamRole` must have the permissions outlined [here](docs/permissionList.md).
 
 ## Running
 

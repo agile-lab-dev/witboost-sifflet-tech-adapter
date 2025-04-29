@@ -39,6 +39,7 @@
                 <configuration>
                     <excludes>
                         <exclude>com/witboost/provisioning/dq/sifflet/Main.class</exclude>
+                        <exclude>generated/witboost/mesh/provisioning/dataquality/sifflet/openapi/**/*.class</exclude>
                     </excludes>
                 </configuration>
                 <executions>

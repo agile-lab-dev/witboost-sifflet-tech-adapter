@@ -7,6 +7,7 @@ import java.util.List;
 import lombok.*;
 
 @Getter
+@Setter
 @EqualsAndHashCode
 @ToString
 @NoArgsConstructor(force = true)

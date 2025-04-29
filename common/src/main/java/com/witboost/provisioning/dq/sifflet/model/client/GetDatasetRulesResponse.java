@@ -2,15 +2,23 @@ package com.witboost.provisioning.dq.sifflet.model.client;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
-import lombok.Data;
+import lombok.*;
 
-@Data
+@Getter
+@Setter
+@ToString
+@NoArgsConstructor
+@AllArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class GetDatasetRulesResponse {
     private List<CatalogFilter> catalogFilters;
     private SearchRules searchRules;
 
-    @Data
+    @Getter
+    @Setter
+    @ToString
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class CatalogFilter {
         private String name;
         private String query;
@@ -18,7 +26,11 @@ public class GetDatasetRulesResponse {
         private List<CatalogChild> children;
     }
 
-    @Data
+    @Getter
+    @Setter
+    @ToString
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class CatalogChild {
         private String name;
         private int results;
@@ -26,13 +38,21 @@ public class GetDatasetRulesResponse {
         private List<CatalogChild> children;
     }
 
-    @Data
+    @Getter
+    @Setter
+    @ToString
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class SearchRules {
         private List<RuleData> data;
         private int totalElements;
     }
 
-    @Data
+    @Getter
+    @Setter
+    @ToString
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class RuleData {
         private String id;
         private String name;
@@ -62,32 +82,52 @@ public class GetDatasetRulesResponse {
         private boolean hasAiRecommendations;
     }
 
-    @Data
+    @Getter
+    @Setter
+    @ToString
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class Provider {
         private String createdBy;
         private String type;
     }
 
-    @Data
+    @Getter
+    @Setter
+    @ToString
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class CreatedBy {
         private String name;
         private String login;
     }
 
-    @Data
+    @Getter
+    @Setter
+    @ToString
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class RunStatus {
         private long timestamp;
         private String status;
         private String result;
     }
 
-    @Data
+    @Getter
+    @Setter
+    @ToString
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class RuleStatus {
         private String ruleStatus;
         private long latestRunDate;
     }
 
-    @Data
+    @Getter
+    @Setter
+    @ToString
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class Dataset {
         private String name;
         private String id;
@@ -98,7 +138,11 @@ public class GetDatasetRulesResponse {
         private String qualifiedName;
     }
 
-    @Data
+    @Getter
+    @Setter
+    @ToString
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class Mail {
         private String id;
         private long createdDate;

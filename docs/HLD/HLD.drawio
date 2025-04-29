@@ -1,6 +1,6 @@
-<mxfile host="Electron" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/26.1.1 Chrome/132.0.6834.210 Electron/34.3.3 Safari/537.36" version="26.1.1" pages="2">
+<mxfile host="Electron" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/26.2.2 Chrome/134.0.6998.178 Electron/35.1.2 Safari/537.36" version="26.2.2" pages="2">
   <diagram name="Provision" id="iD3_rJz78RVbNk7pFicg">
-    <mxGraphModel dx="3243" dy="295" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+    <mxGraphModel dx="2189" dy="-79" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" background="#ffffff" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -88,7 +88,7 @@
         <mxCell id="sFvcHtToKJqh0Nd4D_VD-49" value="6 - Create or update monitors" style="shape=process;whiteSpace=wrap;html=1;backgroundOutline=1;align=left;fontSize=14;spacingLeft=6;container=0;" parent="1" vertex="1">
           <mxGeometry x="137.37" y="1267" width="377.37" height="45" as="geometry" />
         </mxCell>
-        <mxCell id="sFvcHtToKJqh0Nd4D_VD-51" value="5 - Update dataset domain in Sifflet data catalog" style="shape=process;whiteSpace=wrap;html=1;backgroundOutline=1;align=left;fontSize=14;spacingLeft=6;container=0;" parent="1" vertex="1">
+        <mxCell id="sFvcHtToKJqh0Nd4D_VD-51" value="5 - Update view details in data catalog&amp;nbsp;" style="shape=process;whiteSpace=wrap;html=1;backgroundOutline=1;align=left;fontSize=14;spacingLeft=6;container=0;" parent="1" vertex="1">
           <mxGeometry x="137.37" y="1216.9999999999998" width="379" height="40" as="geometry" />
         </mxCell>
         <mxCell id="sFvcHtToKJqh0Nd4D_VD-52" value="1 - Validate provisioning request" style="shape=process;whiteSpace=wrap;html=1;backgroundOutline=1;align=left;fontSize=14;spacingLeft=6;container=0;" parent="1" vertex="1">
@@ -371,7 +371,7 @@
     </mxGraphModel>
   </diagram>
   <diagram name="Unprovision" id="9G7mFoOTbitI2sIp7PrP">
-    <mxGraphModel dx="3243" dy="295" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+    <mxGraphModel dx="2189" dy="-79" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" background="#ffffff" math="0" shadow="0">
       <root>
         <mxCell id="UH7_MFdX2Zg_j0ewNTB--0" />
         <mxCell id="UH7_MFdX2Zg_j0ewNTB--1" parent="UH7_MFdX2Zg_j0ewNTB--0" />
@@ -444,7 +444,7 @@
             <mxPoint x="66" y="17" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="UH7_MFdX2Zg_j0ewNTB--20" value="Idempotent, i.e. does not fail if something it provisions already exists" style="shape=callout;whiteSpace=wrap;html=1;perimeter=calloutPerimeter;flipH=1;spacing=4;flipV=1;fontSize=14;position2=0.64;base=25;size=30;position=0.56;direction=west;container=0;" parent="UH7_MFdX2Zg_j0ewNTB--1" vertex="1">
+        <mxCell id="UH7_MFdX2Zg_j0ewNTB--20" value="Idempotent, i.e. does not fail if something it unprovisions already exists" style="shape=callout;whiteSpace=wrap;html=1;perimeter=calloutPerimeter;flipH=1;spacing=4;flipV=1;fontSize=14;position2=0.64;base=25;size=30;position=0.56;direction=west;container=0;" parent="UH7_MFdX2Zg_j0ewNTB--1" vertex="1">
           <mxGeometry x="316.47" y="932.9999999999999" width="250" height="100" as="geometry" />
         </mxCell>
         <mxCell id="UH7_MFdX2Zg_j0ewNTB--21" value="Athena Tech Adapter" style="rounded=0;whiteSpace=wrap;html=1;fontStyle=1;strokeWidth=2;fontSize=13;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;container=0;" parent="UH7_MFdX2Zg_j0ewNTB--1" vertex="1">

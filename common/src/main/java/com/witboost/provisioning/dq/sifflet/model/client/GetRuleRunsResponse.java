@@ -2,20 +2,32 @@ package com.witboost.provisioning.dq.sifflet.model.client;
 
 import java.util.List;
 import java.util.Map;
-import lombok.Data;
+import lombok.*;
 
-@Data
+@Getter
+@Setter
+@ToString
+@NoArgsConstructor
+@AllArgsConstructor
 public class GetRuleRunsResponse {
     private List<DataItem> data;
     private int totalElements;
 
-    @Data
+    @Getter
+    @Setter
+    @ToString
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class DebugSql {
         private String query;
         private List<String> positionalParameters;
     }
 
-    @Data
+    @Getter
+    @Setter
+    @ToString
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class DataItem {
         private String id;
         private long createdDate;

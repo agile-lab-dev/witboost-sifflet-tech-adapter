@@ -122,7 +122,7 @@ public class WorkloadProvisionService implements ProvisionService {
         return ProvisionService.super.unprovision(operationRequest);
     }
 
-    private Either<FailedOperation, SiffletProvisionOutput> provisionResources(
+    protected Either<FailedOperation, SiffletProvisionOutput> provisionResources(
             DataProduct<?> dataProduct, SiffletSpecific siffletSpecific, String dependencyId) {
 
         var maybeDependentComponent = dataProduct.getComponentToProvision(dependencyId);
@@ -186,7 +186,7 @@ public class WorkloadProvisionService implements ProvisionService {
         return right(new SiffletProvisionOutput(provisionSourceOutput.get(), provisionWorkspaceOutput.get()));
     }
 
-    private Either<FailedOperation, Optional<Workspace>> unprovisionResources(
+    protected Either<FailedOperation, Optional<Workspace>> unprovisionResources(
             DataProduct<?> dataProduct, String dependencyId) {
         logger.info("Executing unprovision of monitors for output port '{}'", dependencyId);
         var maybeDependentComponent = dataProduct.getComponentToProvision(dependencyId);

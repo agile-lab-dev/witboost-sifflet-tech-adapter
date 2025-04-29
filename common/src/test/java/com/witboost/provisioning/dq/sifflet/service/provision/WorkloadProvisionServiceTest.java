@@ -14,9 +14,7 @@ import com.witboost.provisioning.dq.sifflet.model.SiffletSpecific;
 import com.witboost.provisioning.dq.sifflet.model.athena.AthenaEntity;
 import com.witboost.provisioning.dq.sifflet.model.cli.*;
 import com.witboost.provisioning.dq.sifflet.utils.ResourceUtils;
-import com.witboost.provisioning.model.DataProduct;
-import com.witboost.provisioning.model.Specific;
-import com.witboost.provisioning.model.Workload;
+import com.witboost.provisioning.model.*;
 import com.witboost.provisioning.model.common.FailedOperation;
 import com.witboost.provisioning.model.common.Problem;
 import com.witboost.provisioning.model.request.AccessControlOperationRequest;
@@ -46,6 +44,9 @@ class WorkloadProvisionServiceTest {
 
     @InjectMocks
     WorkloadProvisionService workloadProvisionService;
+
+    @Mock
+    private ProvisionOperationRequest<?, ? extends Specific> request;
 
     @BeforeEach
     void init() {
@@ -96,17 +97,17 @@ class WorkloadProvisionServiceTest {
                         .build());
 
         when(sourceManager.provisionSource(
-                        new AthenaEntity(
+                        eq(new AthenaEntity(
                                 "AWSDataCatalog",
                                 "finance_development_exchange_v0_consumable",
                                 "outputport",
                                 Region.EU_WEST_1,
                                 "primary",
-                                "s3://myoutputs3bucket"),
-                        new SiffletSpecific(
-                                "@daily", notification, List.of("urn:dmb:cmp:finance:exchange:0:output-port")),
-                        "arn:aws:iam::myRole"))
-                .thenReturn(right("sourceId"));
+                                "s3://myoutputs3bucket")),
+                        eq(new SiffletSpecific(
+                                "@daily", notification, List.of("urn:dmb:cmp:finance:exchange:0:output-port"))),
+                        eq("arn:aws:iam::myRole")))
+                .thenReturn(Either.right("sourceId"));
 
         when(sourceManager.attachDomainToSourceDatasets(
                         componentDescriptor.getDataProduct().getDomain(), "sourceId"))
@@ -172,17 +173,17 @@ class WorkloadProvisionServiceTest {
                         .build());
 
         when(sourceManager.provisionSource(
-                        new AthenaEntity(
+                        eq(new AthenaEntity(
                                 "AWSDataCatalog",
                                 "finance_development_exchange_v0_consumable",
                                 "outputport",
                                 Region.EU_WEST_1,
                                 "primary",
-                                "s3://myoutputs3bucket"),
-                        new SiffletSpecific(
-                                "@daily", notification, List.of("urn:dmb:cmp:finance:exchange:0:output-port")),
-                        "arn:aws:iam::myRole"))
-                .thenReturn(right("sourceId"));
+                                "s3://myoutputs3bucket")),
+                        eq(new SiffletSpecific(
+                                "@daily", notification, List.of("urn:dmb:cmp:finance:exchange:0:output-port"))),
+                        eq("arn:aws:iam::myRole")))
+                .thenReturn(Either.right("sourceId"));
 
         when(sourceManager.attachDomainToSourceDatasets(
                         componentDescriptor.getDataProduct().getDomain(), "sourceId"))
@@ -212,18 +213,17 @@ class WorkloadProvisionServiceTest {
                 componentDescriptor.getDataProduct(), workload, false, Optional.empty());
         var notification = new Notification.Email("john.doe@witboost.com");
         when(sourceManager.provisionSource(
-                        new AthenaEntity(
+                        eq(new AthenaEntity(
                                 "AWSDataCatalog",
                                 "finance_development_exchange_v0_consumable",
                                 "outputport",
                                 Region.EU_WEST_1,
                                 "primary",
-                                "s3://myoutputs3bucket"),
-                        new SiffletSpecific(
-                                "@daily", notification, List.of("urn:dmb:cmp:finance:exchange:0:output-port")),
-                        "arn:aws:iam::myRole"))
-                .thenReturn(left(new FailedOperation("Error!", List.of())));
-
+                                "s3://myoutputs3bucket")),
+                        eq(new SiffletSpecific(
+                                "@daily", notification, List.of("urn:dmb:cmp:finance:exchange:0:output-port"))),
+                        eq("arn:aws:iam::myRole")))
+                .thenReturn(Either.left(new FailedOperation("Error!", List.of())));
         var output = workloadProvisionService.provision(provisionRequest);
         assertTrue(output.isLeft());
         assertEquals(output.getLeft().message(), "Error!");
@@ -275,17 +275,17 @@ class WorkloadProvisionServiceTest {
                         .build());
 
         when(sourceManager.provisionSource(
-                        new AthenaEntity(
+                        eq(new AthenaEntity(
                                 "AWSDataCatalog",
                                 "finance_development_exchange_v0_consumable",
                                 "outputport",
                                 Region.EU_WEST_1,
                                 "primary",
-                                "s3://myoutputs3bucket"),
-                        new SiffletSpecific(
-                                "@daily", notification, List.of("urn:dmb:cmp:finance:exchange:0:output-port")),
-                        "arn:aws:iam::myRole"))
-                .thenReturn(right("sourceId"));
+                                "s3://myoutputs3bucket")),
+                        eq(new SiffletSpecific(
+                                "@daily", notification, List.of("urn:dmb:cmp:finance:exchange:0:output-port"))),
+                        eq("arn:aws:iam::myRole")))
+                .thenReturn(Either.right("sourceId"));
 
         when(sourceManager.attachDomainToSourceDatasets(
                         componentDescriptor.getDataProduct().getDomain(), "sourceId"))
@@ -374,5 +374,152 @@ class WorkloadProvisionServiceTest {
                 new ReverseProvisionOperationRequest<>("useCaseTemplateId", "environment", new Specific(), null));
         assertTrue(actual.isLeft());
         assertEquals(expectedError, actual.getLeft());
+    }
+
+    @Test
+    void provisionEmptyComponent() {
+        when(request.getComponent()).thenReturn(Optional.empty());
+
+        var actual = workloadProvisionService.provision(request);
+        assertTrue(actual.isLeft());
+
+        String expectedError = "No component to provision on input descriptor";
+        assertEquals(expectedError, actual.getLeft().message());
+    }
+
+    @Test
+    void unprovisionEmptyComponent() {
+        when(request.getComponent()).thenReturn(Optional.empty());
+
+        var actual = workloadProvisionService.provision(request);
+        assertTrue(actual.isLeft());
+
+        String expectedError = "No component to provision on input descriptor";
+        assertEquals(expectedError, actual.getLeft().message());
+    }
+
+    @Test
+    void provisionIncompleteSpecific() throws IOException {
+        String ymlDescriptor = ResourceUtils.getContentFromResource("/descriptor_workload_missingField.yml");
+        var componentDescriptor =
+                Parser.parseComponentDescriptor(ymlDescriptor, Specific.class).get();
+        var component = componentDescriptor
+                .getDataProduct()
+                .getComponentToProvision(componentDescriptor.getComponentIdToProvision())
+                .get();
+        var workload = Parser.parseComponent(component, Workload.class, SiffletSpecific.class)
+                .get();
+        var provisionRequest = new ProvisionOperationRequest<>(
+                componentDescriptor.getDataProduct(), workload, false, Optional.empty());
+
+        var actual = workloadProvisionService.provision(provisionRequest);
+        assertTrue(actual.isLeft());
+
+        String expectedError = "Validation error(s) occurred while validating Sifflet specific section";
+        assertEquals(expectedError, actual.getLeft().message());
+    }
+
+    @Test
+    void unprovisionIncompleteSpecific() throws IOException {
+        String ymlDescriptor = ResourceUtils.getContentFromResource("/descriptor_workload_missingField.yml");
+        var componentDescriptor =
+                Parser.parseComponentDescriptor(ymlDescriptor, Specific.class).get();
+        var component = componentDescriptor
+                .getDataProduct()
+                .getComponentToProvision(componentDescriptor.getComponentIdToProvision())
+                .get();
+        var workload = Parser.parseComponent(component, Workload.class, SiffletSpecific.class)
+                .get();
+        var provisionRequest = new ProvisionOperationRequest<>(
+                componentDescriptor.getDataProduct(), workload, false, Optional.empty());
+
+        var actual = workloadProvisionService.provision(provisionRequest);
+        assertTrue(actual.isLeft());
+
+        String expectedError = "Validation error(s) occurred while validating Sifflet specific section";
+        assertEquals(expectedError, actual.getLeft().message());
+    }
+
+    @Test
+    void provisionWrongComponent() throws IOException {
+        String ymlDescriptor = ResourceUtils.getContentFromResource("/descriptor_workload_missingField.yml");
+        var componentDescriptor =
+                Parser.parseComponentDescriptor(ymlDescriptor, Specific.class).get();
+        var component = componentDescriptor
+                .getDataProduct()
+                .getComponentToProvision(componentDescriptor.getComponentIdToProvision())
+                .get();
+        var workload =
+                Parser.parseComponent(component, Workload.class, Specific.class).get();
+        var provisionRequest = new ProvisionOperationRequest<>(
+                componentDescriptor.getDataProduct(), workload, false, Optional.empty());
+
+        var actual = workloadProvisionService.provision(provisionRequest);
+        assertTrue(actual.isLeft());
+
+        String expectedError =
+                "The specific section of the component urn:dmb:cmp:finance:customers:0:sifflet-data-quality-workload doesn't have the expected schema";
+        assertEquals(expectedError, actual.getLeft().message());
+    }
+
+    @Test
+    void unprovisionWrongComponent() throws IOException {
+        String ymlDescriptor = ResourceUtils.getContentFromResource("/descriptor_workload_missingField.yml");
+        var componentDescriptor =
+                Parser.parseComponentDescriptor(ymlDescriptor, Specific.class).get();
+        var component = componentDescriptor
+                .getDataProduct()
+                .getComponentToProvision(componentDescriptor.getComponentIdToProvision())
+                .get();
+        var workload =
+                Parser.parseComponent(component, Workload.class, Specific.class).get();
+        var provisionRequest = new ProvisionOperationRequest<>(
+                componentDescriptor.getDataProduct(), workload, false, Optional.empty());
+
+        var actual = workloadProvisionService.unprovision(provisionRequest);
+        assertTrue(actual.isLeft());
+
+        String expectedError =
+                "The specific section of the component urn:dmb:cmp:finance:customers:0:sifflet-data-quality-workload doesn't have the expected schema";
+        assertEquals(expectedError, actual.getLeft().message());
+    }
+
+    @Test
+    void provisionResourceDependencyIdNotFound() throws IOException {
+        String ymlDescriptor = ResourceUtils.getContentFromResource("/descriptor_workload.yml");
+        var componentDescriptor = Parser.parseComponentDescriptor(ymlDescriptor, SiffletSpecific.class)
+                .get();
+        var component = componentDescriptor
+                .getDataProduct()
+                .getComponentToProvision(componentDescriptor.getComponentIdToProvision())
+                .get();
+        var workload = Parser.parseComponent(component, Workload.class, SiffletSpecific.class)
+                .get();
+
+        var actual = workloadProvisionService.provisionResources(
+                componentDescriptor.getDataProduct(), workload.getSpecific(), "wrongID");
+        assertTrue(actual.isLeft());
+
+        String expectedError = "Dependency wrongID is not present on the input descriptor";
+        assertEquals(expectedError, actual.getLeft().message());
+    }
+
+    @Test
+    void unprovisionResourceDependencyIdNotFound() throws IOException {
+        String ymlDescriptor = ResourceUtils.getContentFromResource("/descriptor_workload.yml");
+        var componentDescriptor = Parser.parseComponentDescriptor(ymlDescriptor, SiffletSpecific.class)
+                .get();
+        var component = componentDescriptor
+                .getDataProduct()
+                .getComponentToProvision(componentDescriptor.getComponentIdToProvision())
+                .get();
+        var workload = Parser.parseComponent(component, Workload.class, SiffletSpecific.class)
+                .get();
+
+        var actual = workloadProvisionService.unprovisionResources(componentDescriptor.getDataProduct(), "wrongID");
+        assertTrue(actual.isLeft());
+
+        String expectedError = "Dependency wrongID is not present on the input descriptor";
+        assertEquals(expectedError, actual.getLeft().message());
     }
 }

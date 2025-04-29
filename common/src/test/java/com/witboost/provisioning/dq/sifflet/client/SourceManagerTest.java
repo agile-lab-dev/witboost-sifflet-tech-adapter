@@ -674,4 +674,36 @@ class SourceManagerTest {
         assertThat(result.isLeft()).isTrue();
         assertThat(result.getLeft().problems().get(0).getMessage()).contains("Unexpected error");
     }
+
+    @Test
+    void getSourceFromID_shouldReturnError_whenApiFails() {
+        String sourceId = "source-123";
+        String errorMessage = "Simulated API failure";
+
+        when(restClientHelper.performGetRequest(anyString(), anyString(), eq(Source.class), anyBoolean()))
+                .thenThrow(new RuntimeException(errorMessage));
+
+        Either<FailedOperation, Source> result = sourceManager.getSourceFromID(sourceId);
+
+        assertThat(result.isLeft()).isTrue();
+        assertThat(result.getLeft().message()).contains("Unexpected error while getting source information");
+        assertThat(result.getLeft().problems().get(0).getMessage()).contains(errorMessage);
+    }
+
+    @Test
+    void provisionSource_shouldReturnError_whenUnexpectedExceptionOccurs() {
+        AthenaEntity athenaEntity = new AthenaEntity(
+                "AwsDataCatalog", "database", "source_table", Region.EU_WEST_1, "primary", "s3://testbucket");
+        SiffletSpecific siffletSpecific =
+                new SiffletSpecific("cron", new Notification.Email("john.doe@witboost.com"), List.of());
+
+        doThrow(new RuntimeException("TestError")).when(sourceManagerSpy).getSourceFromName(anyString());
+
+        Either<FailedOperation, String> result =
+                sourceManagerSpy.provisionSource(athenaEntity, siffletSpecific, "roleArn");
+
+        assertThat(result.isLeft()).isTrue();
+        assertThat(result.getLeft().message()).contains("Unexpected error while provisioning source 'database'");
+        assertThat(result.getLeft().problems().get(0).getMessage()).contains("TestError");
+    }
 }

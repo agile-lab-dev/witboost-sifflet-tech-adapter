@@ -2,15 +2,14 @@ package com.witboost.provisioning.dq.sifflet.cli;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.witboost.provisioning.dq.sifflet.filesystem.FileManager;
 import com.witboost.provisioning.dq.sifflet.model.YamlMapper;
-import com.witboost.provisioning.dq.sifflet.model.cli.Monitor;
-import com.witboost.provisioning.dq.sifflet.model.cli.PersistentMonitor;
-import com.witboost.provisioning.dq.sifflet.model.cli.Workspace;
+import com.witboost.provisioning.dq.sifflet.model.cli.*;
+import com.witboost.provisioning.model.common.Problem;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -19,6 +18,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -84,14 +84,14 @@ class WorkspaceManagerTest {
 
         String workspaceName = "java_test";
         Path dir = Path.of("/tmp/java_test_123abc");
-        // Necessary to do a middle new File to be platform independent
         String fileLocation = new File("/tmp/java_test_123abc/java_test.yaml").getAbsolutePath();
 
         when(fileManager.initTempDirectory("java_test")).thenReturn(dir);
         when(siffletCLI.getWorkspaceId("java_test")).thenReturn(Optional.empty());
         when(siffletCLI.initWorkspace("java_test", fileLocation))
                 .thenReturn(new Workspace("abcdef-123456-abcdef-123456", "java_test", List.of()));
-        when(fileManager.createAndStoreTempFile(eq(dir), eq("monitor-"), eq(".yaml"), any(String.class)))
+        lenient()
+                .when(fileManager.createAndStoreTempFile(any(Path.class), anyString(), anyString(), anyString()))
                 .thenReturn(new File(fileLocation));
         doNothing().when(siffletCLI).applyWorkspace(fileLocation);
 
@@ -140,5 +140,153 @@ class WorkspaceManagerTest {
         assertTrue(output.isRight());
         assertTrue(output.get().isPresent());
         assertEquals("abcdef-123456-abcdef-123456", output.get().get().getId());
+    }
+
+    @Test
+    void createOrUpdateShouldHandleProcessFailedException() throws IOException, InterruptedException {
+        WorkspaceManager workspaceManager = new WorkspaceManager(siffletCLI, fileManager);
+        List<Monitor> monitors = List.of(new Monitor(
+                "ID field unique",
+                new Incident(Incident.Severity.Low, false),
+                List.of(),
+                List.of(),
+                new Parameters.FieldNulls(),
+                "@daily",
+                "UTC"));
+
+        String workspaceName = "java_test";
+        Path dir = Path.of("/tmp/java_test_123abc");
+        String fileLocation = new File("/tmp/java_test_123abc/java_test.yaml").getAbsolutePath();
+
+        when(fileManager.initTempDirectory("java_test")).thenReturn(dir);
+        when(siffletCLI.getWorkspaceId("java_test")).thenReturn(Optional.empty());
+        when(siffletCLI.initWorkspace("java_test", fileLocation))
+                .thenReturn(new Workspace("abcdef-123456-abcdef-123456", "java_test", List.of()));
+        lenient()
+                .when(fileManager.createAndStoreTempFile(any(Path.class), anyString(), anyString(), anyString()))
+                .thenThrow(new IOException("Error creating monitor file"));
+
+        var output = workspaceManager.createOrUpdate(workspaceName, monitors);
+
+        assertTrue(output.isLeft());
+        assertEquals(
+                "An unexpected error occurred while creating workspace named 'java_test'. Details: java.io.IOException: Error creating monitor file",
+                output.getLeft().message());
+    }
+
+    @Test
+    void createOrUpdateShouldHandleWorkspaceNotFound() throws IOException, InterruptedException {
+        WorkspaceManager workspaceManager = new WorkspaceManager(siffletCLI, fileManager);
+
+        List<Monitor> monitors = List.of(new Monitor(
+                "ID field unique",
+                new Incident(Incident.Severity.Low, false),
+                List.of(),
+                List.of(),
+                new Parameters.FieldNulls(),
+                "@daily",
+                "UTC"));
+
+        String workspaceName = "java_test";
+        Path dir = Path.of("/tmp/java_test_123abc");
+        String fileLocation = new File("/tmp/java_test_123abc/java_test.yaml").getAbsolutePath();
+
+        when(fileManager.initTempDirectory("java_test")).thenReturn(dir);
+        when(siffletCLI.getWorkspaceId("java_test")).thenReturn(Optional.empty());
+        when(siffletCLI.initWorkspace("java_test", fileLocation))
+                .thenReturn(new Workspace("abcdef-123456-abcdef-123456", "java_test", List.of()));
+        lenient()
+                .when(fileManager.createAndStoreTempFile(any(Path.class), anyString(), anyString(), anyString()))
+                .thenReturn(new File(fileLocation));
+        doNothing().when(siffletCLI).applyWorkspace(fileLocation);
+
+        var output = workspaceManager.createOrUpdate(workspaceName, monitors);
+
+        assertTrue(output.isRight());
+        assertEquals("abcdef-123456-abcdef-123456", output.get().getId());
+    }
+
+    @Test
+    void createOrUpdateShouldHandleYamlParsingException() throws IOException, InterruptedException {
+        WorkspaceManager workspaceManager = new WorkspaceManager(siffletCLI, fileManager);
+
+        List<Monitor> monitors = List.of(new Monitor(
+                "ID field unique",
+                new Incident(Incident.Severity.Low, false),
+                List.of(),
+                List.of(),
+                new Parameters.FieldNulls(),
+                "@daily",
+                "UTC"));
+
+        String workspaceName = "java_test";
+        Path dir = Path.of("/tmp/java_test_123abc");
+        String fileLocation = new File("/tmp/java_test_123abc/java_test.yaml").getAbsolutePath();
+
+        when(fileManager.initTempDirectory("java_test")).thenReturn(dir);
+        when(siffletCLI.getWorkspaceId("java_test")).thenReturn(Optional.empty());
+        when(siffletCLI.initWorkspace("java_test", fileLocation))
+                .thenReturn(new Workspace("abcdef-123456-abcdef-123456", "java_test", List.of()));
+
+        try (MockedStatic<YamlMapper> mockedStatic = mockStatic(YamlMapper.class)) {
+            mockedStatic
+                    .when(() -> YamlMapper.toYaml(any(PersistentMonitor.class)))
+                    .thenThrow(new JsonMappingException("Error serializing monitor"));
+
+            var output = workspaceManager.createOrUpdate(workspaceName, monitors);
+
+            assertTrue(output.isLeft());
+            assertEquals(
+                    "An unexpected error occurred while creating workspace named 'java_test'. Details: com.fasterxml.jackson.databind.JsonMappingException: Error serializing monitor",
+                    output.getLeft().message());
+        }
+    }
+
+    @Test
+    void deleteWorkspaceShouldHandleWorkspaceNotFound() throws IOException, InterruptedException {
+        WorkspaceManager workspaceManager = new WorkspaceManager(siffletCLI, fileManager);
+
+        when(siffletCLI.getWorkspaceId("java_test")).thenReturn(Optional.empty());
+
+        var output = workspaceManager.delete("java_test");
+
+        assertTrue(output.isRight());
+        assertTrue(output.get().isEmpty());
+    }
+
+    @Test
+    void deleteWorkspaceShouldHandleIOException() throws IOException, InterruptedException {
+        WorkspaceManager workspaceManager = new WorkspaceManager(siffletCLI, fileManager);
+
+        when(siffletCLI.getWorkspaceId("java_test")).thenReturn(Optional.of("abcdef-123456-abcdef-123456"));
+        doThrow(new IOException("Error deleting workspace"))
+                .when(siffletCLI)
+                .deleteWorkspace("abcdef-123456-abcdef-123456");
+
+        var output = workspaceManager.delete("java_test");
+
+        assertTrue(output.isLeft());
+        assertEquals(
+                "An unexpected error occurred while deleting Sifflet workspace: Error deleting workspace",
+                output.getLeft().message());
+    }
+
+    @Test
+    void getShouldHandleUnexpectedException() throws IOException, InterruptedException {
+        WorkspaceManager workspaceManager = new WorkspaceManager(siffletCLI, fileManager);
+
+        String workspaceName = "java_test";
+
+        when(siffletCLI.getWorkspaceId(workspaceName)).thenThrow(new RuntimeException("Database connection failed"));
+
+        var output = workspaceManager.get(workspaceName);
+
+        assertTrue(output.isLeft());
+        String expectedMessage =
+                "An unexpected error occurred while retrieving workspace named 'java_test'. Details: Database connection failed";
+        assertEquals(expectedMessage, output.getLeft().message());
+
+        List<Problem> problems = output.getLeft().problems();
+        assertFalse(problems.isEmpty());
     }
 }

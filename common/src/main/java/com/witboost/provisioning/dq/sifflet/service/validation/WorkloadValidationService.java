@@ -52,7 +52,7 @@ public class WorkloadValidationService implements ComponentValidationService {
         var component = maybeComponent.get();
 
         if (component instanceof Workload<? extends Specific>) {
-            if (component.getSpecific() instanceof SiffletSpecific siffletSpecific) {
+            if (component.getSpecific() instanceof @Valid SiffletSpecific siffletSpecific) {
                 var specificValidation = SiffletValidator.validateSiffletComponent(siffletSpecific);
                 if (specificValidation.isLeft()) {
                     logger.error("Error while validating Sifflet specific section: {}", specificValidation.getLeft());

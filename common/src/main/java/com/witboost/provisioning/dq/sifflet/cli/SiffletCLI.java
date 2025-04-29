@@ -41,7 +41,7 @@ public class SiffletCLI {
      * @throws IOException
      * @throws InterruptedException
      */
-    private List<String> launchProcess(ProcessBuilder builder) throws IOException, InterruptedException {
+    protected List<String> launchProcess(ProcessBuilder builder) throws IOException, InterruptedException {
         logger.debug("Executing {}...", builder.command());
         Process process = builder.start();
 

@@ -102,18 +102,18 @@ public class WorkspaceManager {
             cli.applyWorkspace(workspaceFile.getAbsolutePath());
 
             return Either.right(new Workspace(workspace, persistentMonitors));
-        } catch (IOException | InterruptedException exception) {
+        } catch (ProcessFailedException exception) {
+            return Either.left(parseProcessFailedException(exception));
+        } catch (Exception exception) {
             String error = String.format(
                     "An unexpected error occurred while creating workspace named '%s'. Details: %s",
                     name, exception.getMessage());
             logger.error(error, exception);
             return Either.left(new FailedOperation(error, List.of(new Problem(error, exception))));
-        } catch (ProcessFailedException exception) {
-            return Either.left(parseProcessFailedException(exception));
         }
     }
 
-    private FailedOperation parseProcessFailedException(ProcessFailedException exception) {
+    protected FailedOperation parseProcessFailedException(ProcessFailedException exception) {
         String yaml = exception.getStandardOutput().stream()
                 .map(line -> {
                     // Sifflet response on stdout is almost a valid YAML,

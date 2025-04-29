@@ -15,8 +15,11 @@ import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
 
+@ExtendWith(MockitoExtension.class)
 class CustomDataQualityProvisionServiceTest {
 
     @Mock
@@ -113,7 +116,8 @@ class CustomDataQualityProvisionServiceTest {
     @Test
     void getDataQualityResult_shouldThrowException_whenUnexpectedErrorOccurs() {
         OutputPortRequest request = new OutputPortRequest();
-        when(rulesManager.getDatasetRules(anyString(), anyString()))
+        lenient()
+                .when(rulesManager.getDatasetRules(anyString(), anyString()))
                 .thenThrow(new RuntimeException("Unexpected error"));
 
         DataQualityProvisioningException exception = assertThrows(DataQualityProvisioningException.class, () -> {

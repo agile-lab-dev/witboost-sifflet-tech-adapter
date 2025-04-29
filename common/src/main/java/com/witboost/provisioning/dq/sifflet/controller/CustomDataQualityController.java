@@ -1,29 +1,27 @@
 package com.witboost.provisioning.dq.sifflet.controller;
 
-import com.witboost.provisioning.dq.sifflet.service.dataquality.DataQualityService;
+import com.witboost.provisioning.dq.sifflet.service.dataquality.CustomDataQualityProvisionService;
 import generated.witboost.mesh.provisioning.dataquality.sifflet.openapi.controller.V1CustomDataQualityApiDelegate;
 import generated.witboost.mesh.provisioning.dataquality.sifflet.openapi.model.DataQualityResult;
 import generated.witboost.mesh.provisioning.dataquality.sifflet.openapi.model.OutputPortRequest;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
 
-@RestController
+@Service
 public class CustomDataQualityController implements V1CustomDataQualityApiDelegate {
 
-    private final DataQualityService dataQualityService;
+    private final CustomDataQualityProvisionService provisionService;
 
-    public CustomDataQualityController(DataQualityService dataQualityService) {
-        this.dataQualityService = dataQualityService;
+    public CustomDataQualityController(CustomDataQualityProvisionService provisionService) {
+        this.provisionService = provisionService;
     }
 
     @Override
-    @PostMapping("/v1/dataquality")
     public ResponseEntity<List<DataQualityResult>> getDataQualityResult(
             @RequestBody OutputPortRequest outputPortRequest) {
 
-        return ResponseEntity.ok(dataQualityService.getDataQualityResult(outputPortRequest));
+        return ResponseEntity.ok(provisionService.getDataQualityResult(outputPortRequest));
     }
 }

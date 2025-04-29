@@ -214,4 +214,44 @@ public class RestClientHelperTest {
                 RestClientHelper.GenericRestClientException.class,
                 () -> restClientHelper.performPutRequest(url, token, "body content", String.class, true));
     }
+
+    @Test
+    public void testPerformPostRequest_HttpError() {
+        when(restClient.post()).thenReturn(requestBodyUriSpec);
+        when(requestBodyUriSpec.uri(URI.create(url))).thenReturn(requestBodyUriSpec);
+        when(requestBodyUriSpec.header("Accept", "application/json")).thenReturn(requestBodyUriSpec);
+        when(requestBodyUriSpec.header("Authorization", "Bearer " + token)).thenReturn(requestBodyUriSpec);
+        when(requestBodyUriSpec.header("Content-Type", "application/json")).thenReturn(requestBodyUriSpec);
+        when(requestBodyUriSpec.body("body content")).thenReturn(requestBodyUriSpec);
+        when(requestBodyUriSpec.retrieve()).thenReturn(responseSpec);
+        when(responseSpec.onStatus(any(), any())).thenAnswer(inv -> {
+            throw new RestClientHelper.HttpStatusCodeException("HTTP error", HttpStatusCode.valueOf(400));
+        });
+
+        assertThrows(
+                RestClientHelper.HttpStatusCodeException.class,
+                () -> restClientHelper.performPostRequest(url, token, "body content", String.class, true));
+    }
+
+    @Test
+    public void testPerformGetRequest_HttpStatusErrorTriggered() {
+        when(restClient.get()).thenReturn(requestHeadersUriSpecMock);
+        when(requestHeadersUriSpecMock.uri(URI.create(url))).thenReturn(requestHeadersUriSpecMock);
+        when(requestHeadersUriSpecMock.header("accept", "application/json")).thenReturn(requestHeadersUriSpecMock);
+        when(requestHeadersUriSpecMock.header("Authorization", "Bearer " + token))
+                .thenReturn(requestHeadersUriSpecMock);
+
+        when(requestHeadersUriSpecMock.retrieve()).thenReturn(responseSpec);
+        when(responseSpec.onStatus(any(), any())).then(invocation -> {
+            var status = HttpStatusCode.valueOf(403);
+            var responseMock =
+                    new org.springframework.mock.http.client.MockClientHttpResponse(new byte[0], status.value());
+            invocation.getArgument(1, java.util.function.BiConsumer.class).accept(null, responseMock);
+            return responseSpec;
+        });
+
+        assertThrows(
+                RestClientHelper.GenericRestClientException.class,
+                () -> restClientHelper.performGetRequest(url, token, String.class, true));
+    }
 }

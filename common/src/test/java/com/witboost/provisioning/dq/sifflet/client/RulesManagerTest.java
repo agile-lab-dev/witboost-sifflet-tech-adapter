@@ -251,4 +251,49 @@ class RulesManagerTest {
         assertThat(result.isLeft()).isTrue();
         assertThat(result.getLeft().message()).contains(errorMessage);
     }
+
+    @Test
+    void getLastRuns_shouldSortRunsByStartDateDescending() {
+        String ruleId = "rule-123";
+
+        GetRuleRunsResponse.DataItem run1 = new GetRuleRunsResponse.DataItem();
+        run1.setId("run-1");
+        run1.setStartDate(100);
+
+        GetRuleRunsResponse.DataItem run2 = new GetRuleRunsResponse.DataItem();
+        run2.setId("run-2");
+        run2.setStartDate(300);
+
+        GetRuleRunsResponse.DataItem run3 = new GetRuleRunsResponse.DataItem();
+        run3.setId("run-3");
+        run3.setStartDate(200);
+
+        GetRuleRunsResponse response = new GetRuleRunsResponse();
+        response.setData(List.of(run1, run2, run3));
+
+        when(restClientHelper.performGetRequest(anyString(), anyString(), eq(GetRuleRunsResponse.class), anyBoolean()))
+                .thenReturn(response);
+
+        Either<FailedOperation, List<GetRuleRunsResponse.DataItem>> result = rulesManager.getLastRuns(ruleId, 3);
+
+        assertThat(result.isRight()).isTrue();
+        List<GetRuleRunsResponse.DataItem> runs = result.get();
+
+        assertThat(runs).extracting(GetRuleRunsResponse.DataItem::getId).containsExactly("run-2", "run-3", "run-1");
+    }
+
+    @Test
+    void createResultForFrontend_shouldCatchUnexpectedException() {
+        GetDatasetRulesResponse.RuleData ruleData = new GetDatasetRulesResponse.RuleData();
+        ruleData.setId("rule-1");
+
+        when(rulesManagerSpy.getLastRuns(any(), anyInt())).thenThrow(new NullPointerException("TestError!"));
+
+        Either<FailedOperation, List<DataQualityResult>> result =
+                rulesManagerSpy.createResultForFrontend(List.of(ruleData), 3);
+
+        assertThat(result.isLeft()).isTrue();
+        assertThat(result.getLeft().message()).contains("Unexpected error while creating frontend result");
+        assertThat(result.getLeft().problems().get(0).getMessage()).contains("TestError!");
+    }
 }

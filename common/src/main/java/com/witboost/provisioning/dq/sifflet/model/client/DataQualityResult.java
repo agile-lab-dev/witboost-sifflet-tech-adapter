@@ -1,9 +1,12 @@
 package com.witboost.provisioning.dq.sifflet.model.client;
 
 import java.util.List;
-import lombok.Data;
+import lombok.*;
 
-@Data
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 public class DataQualityResult {
     private String id; // monitor ID
     private String name; // monitor Name
@@ -20,7 +23,10 @@ public class DataQualityResult {
     private double lastRunsMonitorAttentionTechicalError;
     private List<RunStatus> lastRunsStatuses;
 
-    @Data
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class RunStatus {
         private long timestamp;
         private String status;
