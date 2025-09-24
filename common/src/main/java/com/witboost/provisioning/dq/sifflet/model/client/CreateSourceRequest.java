@@ -2,6 +2,7 @@ package com.witboost.provisioning.dq.sifflet.model.client;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -18,9 +19,13 @@ public class CreateSourceRequest {
 
     private String name;
     private String description;
-    private String type;
+
+    @JsonProperty("parameters")
     private Params params;
+
     private List<String> tags;
+
+    @JsonProperty("schedule")
     private String cronExpression;
 
     @Getter

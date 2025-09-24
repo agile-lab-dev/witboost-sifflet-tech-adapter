@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y python3 python3-pip python3-venv && \
 # Create a virtual environment and install sifflet CLI
 RUN python3 -m venv /opt/venv && \
     /opt/venv/bin/pip install --upgrade pip && \
-    /opt/venv/bin/pip install sifflet
+    /opt/venv/bin/pip install sifflet==0.3.22
 
 # Ensure the virtual environment is activated in the PATH
 ENV PATH="/opt/venv/bin:$PATH"

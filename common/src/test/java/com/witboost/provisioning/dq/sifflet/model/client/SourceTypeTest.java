@@ -11,6 +11,6 @@ class SourceTypeTest {
 
     @Test
     void testSourceTypeValue() {
-        assertEquals("athena", SourceType.ATHENA.getValue());
+        assertEquals("ATHENA", SourceType.ATHENA.getValue());
     }
 }

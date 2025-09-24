@@ -2,6 +2,7 @@ package com.witboost.provisioning.dq.sifflet.model.client;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.List;
 import java.util.Map;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -15,23 +16,26 @@ public class CreateSourceResponse {
 
     private String id;
     private String name;
-    private String type;
-    private String status;
-    private String createdAt;
-    private String updatedAt;
+    private String description;
+    private String timezone;
+    private List<String> tags;
+    private String credentials;
+    private String schedule;
+    private Map<String, Object> lastRun;
 
-    @JsonProperty("params")
+    @JsonProperty("parameters")
     private Map<String, Object> parameters;
 
     @Override
     public String toString() {
         return "CreateSourceResponse{" + "id='"
                 + id + '\'' + ", name='"
-                + name + '\'' + ", type='"
-                + type + '\'' + ", status='"
-                + status + '\'' + ", createdAt='"
-                + createdAt + '\'' + ", updatedAt='"
-                + updatedAt + '\'' + ", parameters="
+                + name + '\'' + ", description='"
+                + description + '\'' + ", timezone='"
+                + timezone + '\'' + ", tags='"
+                + tags + '\'' + ", credentials='"
+                + credentials + '\'' + ", schedule="
+                + schedule + '\'' + ", parameters="
                 + parameters + '}';
     }
 }

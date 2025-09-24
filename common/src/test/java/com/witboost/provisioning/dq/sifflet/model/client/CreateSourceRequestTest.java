@@ -32,14 +32,12 @@ class CreateSourceRequestTest {
         CreateSourceRequest createSourceRequest = new CreateSourceRequest();
         createSourceRequest.setName(name);
         createSourceRequest.setDescription(description);
-        createSourceRequest.setType(type);
         createSourceRequest.setTags(tags);
         createSourceRequest.setCronExpression(cronExpression);
         createSourceRequest.setParams(params);
 
         assertEquals("Test Source", createSourceRequest.getName());
         assertEquals("A test description", createSourceRequest.getDescription());
-        assertEquals("CustomType", createSourceRequest.getType());
         assertEquals(tags, createSourceRequest.getTags());
         assertEquals("0 0 12 * * ?", createSourceRequest.getCronExpression());
         assertEquals(params, createSourceRequest.getParams());
@@ -82,7 +80,6 @@ class CreateSourceRequestTest {
 
         assertNull(createSourceRequest.getName());
         assertNull(createSourceRequest.getDescription());
-        assertNull(createSourceRequest.getType());
         assertNull(createSourceRequest.getTags());
         assertNull(createSourceRequest.getCronExpression());
         assertNull(createSourceRequest.getParams());
@@ -92,7 +89,6 @@ class CreateSourceRequestTest {
     void testAllArgsConstructor() {
         String name = "Test Source";
         String description = "A test description";
-        String type = "CustomType";
         List<String> tags = Arrays.asList("tag1", "tag2");
         String cronExpression = "0 0 12 * * ?";
 
@@ -107,11 +103,10 @@ class CreateSourceRequestTest {
                 "vpc-url");
 
         CreateSourceRequest createSourceRequest =
-                new CreateSourceRequest(name, description, type, params, tags, cronExpression);
+                new CreateSourceRequest(name, description, params, tags, cronExpression);
 
         assertEquals("Test Source", createSourceRequest.getName());
         assertEquals("A test description", createSourceRequest.getDescription());
-        assertEquals("CustomType", createSourceRequest.getType());
         assertEquals(tags, createSourceRequest.getTags());
         assertEquals("0 0 12 * * ?", createSourceRequest.getCronExpression());
         assertEquals(params, createSourceRequest.getParams());

@@ -4,7 +4,7 @@ import lombok.Getter;
 
 @Getter
 public enum SourceType {
-    ATHENA("athena");
+    ATHENA("ATHENA");
 
     private final String value;
 

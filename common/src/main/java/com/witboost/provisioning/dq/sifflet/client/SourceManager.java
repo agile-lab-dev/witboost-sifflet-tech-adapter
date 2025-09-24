@@ -35,8 +35,7 @@ public class SourceManager {
     private final ObjectMapper objectMapper;
     private final RestClientHelper restClientHelper;
 
-    private static final String API_V1_SOURCES = "/api/v1/sources/";
-    private static final String API_UI_V1_DATASOURCES = "/api/ui/v1/datasources";
+    private static final String API_V1_SOURCES = "/api/v1/sources";
     private static final String API_UI_V1_DOMAINS = "/api/ui/v1/domains";
     private static final String API_V1_ASSETS_SEARCH = "/api/v1/assets/search";
 
@@ -99,7 +98,7 @@ public class SourceManager {
     protected Either<FailedOperation, Source> getSourceFromID(String sourceID) {
         try {
 
-            String url = basePath + API_V1_SOURCES + sourceID;
+            String url = basePath + API_V1_SOURCES + "/" + sourceID;
             return Either.right(restClientHelper.performGetRequest(url, token, Source.class, true));
 
         } catch (Exception e) {
@@ -121,8 +120,9 @@ public class SourceManager {
         try {
             CreateSourceRequest createSourceRequest = createSourceRequest(athenaEntity, siffletSpecific, roleArn);
             String jsonRequest = objectMapper.writeValueAsString(createSourceRequest);
-            String url = basePath + API_UI_V1_DATASOURCES;
+            String url = basePath + API_V1_SOURCES;
             logger.info("Creating new source: {}", sourceName);
+            logger.info("Request: {}", jsonRequest);
 
             CreateSourceResponse createSourceResponse =
                     restClientHelper.performPostRequest(url, token, jsonRequest, CreateSourceResponse.class, true);
@@ -146,7 +146,7 @@ public class SourceManager {
         try {
             logger.info("Checking existence of source: {}", sourceName);
 
-            String url = basePath + API_V1_SOURCES + "search";
+            String url = basePath + API_V1_SOURCES + "/search";
             String jsonBody = String.format(
                     "{\"filter\":{\"textSearch\":\"%s\"},\"pagination\":{\"itemsPerPage\":-1,\"page\":0}}", sourceName);
 
@@ -219,7 +219,6 @@ public class SourceManager {
         return new CreateSourceRequest(
                 computeSourceName(athenaEntity.getDatabase()),
                 description,
-                SourceType.ATHENA.getValue(),
                 params,
                 Collections.emptyList(),
                 siffletSpecific.getDataSourceRefreshCron());
